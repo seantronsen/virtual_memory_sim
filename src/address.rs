@@ -5,9 +5,9 @@ const MASK_PAGE: u32 = 0x0000FF00;
 const MASK_OFFSET: u32 = 0x000000FF;
 
 #[derive(PartialEq, Debug)]
-struct Address {
-    number_page: u8,
-    number_offset: u8,
+pub struct Address {
+    pub number_page: u8,
+    pub number_offset: u8,
     extra_bits: u16,
 }
 
@@ -21,16 +21,14 @@ impl From<u32> for Address {
     }
 }
 
-#[allow(dead_code)]
-struct AddressReader {
+pub struct AddressReader {
     filename: String,
     reader: BufReader<File>,
     line_number: usize,
 }
 
-#[allow(dead_code)]
 impl AddressReader {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let filename = "addresses.txt";
         let file_ptr = File::open(filename).unwrap();
         let reader = BufReader::new(file_ptr);
@@ -43,7 +41,6 @@ impl AddressReader {
     }
 }
 
-#[allow(dead_code)]
 impl Iterator for AddressReader {
     type Item = Address;
 
