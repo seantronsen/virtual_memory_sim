@@ -3,18 +3,26 @@ mod address;
 mod backing_store;
 mod table;
 
+const BACKING_STORE_FILENAME: &str = "BACKING_STORE.bin";
+const ADDRESS_FILE: &str = "addresses.txt";
 const TABLE_SIZE: usize = 256;
 const FRAME_SIZE: usize = 256;
+const MASK_PAGE: u32 = 0x0000FF00;
+const MASK_OFFSET: u32 = 0x000000FF;
 
-struct Simulation {
-    page_table: table::PageTable,
+enum Error {}
+type Result<T> = std::result::Result<T, Error>;
+
+/// A structure which contains the core elements required to run a simulation.
+pub struct Simulation {
+    pub page_table: table::PageTable,
     frame_table: table::FrameTable,
     address_reader: address::AddressReader,
     backing_store: backing_store::BackingStore,
 }
 
 impl Simulation {
-    fn build(num_pages: usize, num_frames: usize, frame_size: usize) -> Self {
+    pub fn build(num_pages: usize, num_frames: usize, frame_size: usize) -> Self {
         let page_table = table::PageTable::build(num_pages);
         let frame_table = table::FrameTable::build(num_frames, frame_size);
 
@@ -53,7 +61,9 @@ fn run_simulation(simulation: Simulation) {
             false => {
                 let new_frame_index = frame_table.obtain_available_index().unwrap();
                 let frame = &mut frame_table[new_frame_index];
-                backing_store.read_frame(logical_address.number_page as usize, frame);
+                backing_store
+                    .read_frame(logical_address.number_page as u64, frame)
+                    .unwrap();
                 frame.valid = true;
                 page.valid = true;
                 frame.buffer[logical_address.number_offset as usize]

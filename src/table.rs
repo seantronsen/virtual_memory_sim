@@ -1,13 +1,14 @@
+use crate::{FRAME_SIZE, TABLE_SIZE};
 use std::collections::LinkedList;
 use std::ops::{Index, IndexMut};
 
 pub struct Page {
-    pub frame_index: u8,
+    pub frame_index: usize,
     pub valid: bool,
 }
 
 impl Page {
-    fn new(frame_index: u8) -> Self {
+    fn new(frame_index: usize) -> Self {
         Self {
             frame_index,
             valid: false,
@@ -51,6 +52,7 @@ pub struct Frame {
 }
 
 impl Frame {
+    // todo: shouldn't be able to make these outside of a table
     pub fn new(frame_size: usize) -> Self {
         Self {
             buffer: vec![0 as u8; frame_size],
@@ -58,28 +60,24 @@ impl Frame {
         }
     }
 
-    pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.buffer
+    pub fn size(&self) -> u64 {
+        self.buffer.len() as u64
     }
 }
 
-struct FreeFrameQueue {
-    internal: LinkedList<usize>,
-}
+struct FreeFrameQueue(LinkedList<usize>);
 
 impl FreeFrameQueue {
     fn new() -> Self {
-        Self {
-            internal: LinkedList::new(),
-        }
+        Self(LinkedList::new())
     }
 
     fn enqueue(&mut self, free_index: usize) {
-        self.internal.push_front(free_index);
+        self.0.push_front(free_index);
     }
 
-    pub fn dequeue(&mut self) -> Option<usize> {
-        self.internal.pop_back()
+    fn dequeue(&mut self) -> Option<usize> {
+        self.0.pop_back()
     }
 }
 
@@ -158,8 +156,8 @@ mod tests {
 
         #[test]
         fn build() {
-            let page_table = PageTable::build(crate::TABLE_SIZE);
-            assert_eq!(page_table.table_size, crate::TABLE_SIZE);
+            let page_table = PageTable::build(TABLE_SIZE);
+            assert_eq!(page_table.table_size, TABLE_SIZE);
             assert!(page_table.entries.iter().all(|x| !x.valid));
         }
     }
@@ -171,9 +169,9 @@ mod tests {
 
         #[test]
         fn new() {
-            let frame = Frame::new(crate::FRAME_SIZE);
+            let frame = Frame::new(FRAME_SIZE);
             assert_eq!(frame.valid, false);
-            assert_eq!(frame.buffer.len(), crate::FRAME_SIZE);
+            assert_eq!(frame.buffer.len(), FRAME_SIZE);
             assert!(frame.buffer.iter().all(|x| *x == 0));
         }
     }
@@ -186,7 +184,7 @@ mod tests {
         #[test]
         fn new() {
             let ffq = FreeFrameQueue::new();
-            assert_eq!(ffq.internal.len(), 0);
+            assert_eq!(ffq.0.len(), 0);
         }
 
         #[test]
@@ -207,11 +205,11 @@ mod tests {
 
         #[test]
         fn new() {
-            let ft = FrameTable::build(crate::TABLE_SIZE, crate::FRAME_SIZE);
-            assert_eq!(ft.available.internal.len(), crate::TABLE_SIZE);
-            assert_eq!(ft.entries.len(), crate::TABLE_SIZE);
-            assert_eq!(ft.table_size, crate::TABLE_SIZE);
-            assert_eq!(ft.frame_size, crate::FRAME_SIZE);
+            let ft = FrameTable::build(TABLE_SIZE, FRAME_SIZE);
+            assert_eq!(ft.available.0.len(), TABLE_SIZE);
+            assert_eq!(ft.entries.len(), TABLE_SIZE);
+            assert_eq!(ft.table_size, TABLE_SIZE);
+            assert_eq!(ft.frame_size, FRAME_SIZE);
         }
     }
 }

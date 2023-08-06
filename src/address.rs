@@ -1,8 +1,7 @@
+use crate::{MASK_OFFSET, MASK_PAGE, ADDRESS_FILE};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-const MASK_PAGE: u32 = 0x0000FF00;
-const MASK_OFFSET: u32 = 0x000000FF;
 
 #[derive(PartialEq, Debug)]
 pub struct Address {
@@ -24,17 +23,22 @@ impl From<u32> for Address {
 pub struct AddressReader {
     filename: String,
     reader: BufReader<File>,
-    line_number: usize,
+    line_number: u64,
 }
 
 impl AddressReader {
     pub fn new() -> Self {
-        let filename = "addresses.txt";
-        let file_ptr = File::open(filename).unwrap();
+        let file_ptr = File::open(ADDRESS_FILE).expect(
+            format!(
+                "expected `{}` to exist in the current working directory",
+                ADDRESS_FILE
+            )
+            .as_str(),
+        );
         let reader = BufReader::new(file_ptr);
 
         Self {
-            filename: String::from(filename),
+            filename: String::from(ADDRESS_FILE),
             reader,
             line_number: 0,
         }
@@ -48,10 +52,15 @@ impl Iterator for AddressReader {
         let mut buffer = String::new();
         match self.reader.read_line(&mut buffer) {
             Ok(0) => None,
-            Ok(_) => Some(Address::from(buffer.trim().parse::<u32>().unwrap())),
-            Err(err) => {
-                panic!("error: {:?}", err)
+            Ok(_) => {
+                let value = buffer
+                    .trim()
+                    .parse::<u32>()
+                    .expect("expected an integer value");
+                self.line_number += 1;
+                Some(Address::from(value))
             }
+            Err(err) => panic!("error: {:?}", err),
         }
     }
 }

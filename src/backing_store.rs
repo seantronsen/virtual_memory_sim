@@ -1,6 +1,20 @@
-use crate::table;
+use crate::{
+    table::{self, Frame},
+    BACKING_STORE_FILENAME,
+};
+use std::fmt;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
+
+#[derive(Debug)]
+pub struct Error(io::Error);
+pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Error(value)
+    }
+}
 
 pub struct BackingStore {
     filename: String,
@@ -10,25 +24,21 @@ pub struct BackingStore {
 
 impl BackingStore {
     pub fn build() -> Self {
-        let filename = "BACKING_STORE.bin";
-        let file = File::open(filename).unwrap();
+        let file = File::open(BACKING_STORE_FILENAME).unwrap();
         let metadata = file.metadata().unwrap();
-        let size_bytes = metadata.len();
-        let reader = BufReader::new(file);
 
         Self {
-            filename: String::from(filename),
-            reader,
-            size_bytes,
+            filename: String::from(BACKING_STORE_FILENAME),
+            reader: BufReader::new(file),
+            size_bytes: metadata.len(),
         }
     }
 
-    pub fn read_frame(&mut self, seek_multiplier: usize, frame: &mut table::Frame) {
-        let buffer = frame.buffer_mut();
-        let size = buffer.len();
-        let seek_position = SeekFrom::Start((size * seek_multiplier) as u64);
-        self.reader.seek(seek_position).unwrap();
-        self.reader.read(buffer).unwrap();
+    pub fn read_frame(&mut self, seek_multiplier: u64, frame: &mut Frame) -> Result<()> {
+        self.reader
+            .seek(SeekFrom::Start(frame.size() * seek_multiplier))?;
+        self.reader.read(&mut frame.buffer)?;
+        Ok(())
     }
 }
 
@@ -52,7 +62,7 @@ mod test {
         fn read_frame() {
             let mut frame = table::Frame::new(256);
             let mut store = BackingStore::build();
-            store.read_frame(0, &mut frame);
+            store.read_frame(0, &mut frame).unwrap();
             assert_eq!(frame.buffer[7], 0x01);
             assert_eq!(frame.buffer[11], 0x02);
             assert_eq!(frame.buffer[15], 0x03);
