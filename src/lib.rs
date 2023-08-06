@@ -44,7 +44,7 @@ fn run_simulation(simulation: Simulation) {
 
     for virtual_address in address_reader {
         let byte = virtual_memory.access(virtual_address).unwrap();
-        println!("byte value: {}", byte);
+        println!("byte value: {}", byte as i8);
     }
 }
 
