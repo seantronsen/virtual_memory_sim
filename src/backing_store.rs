@@ -1,6 +1,6 @@
 use crate::{
-    table::{self, Frame},
-    BACKING_STORE_FILENAME,
+    table::{self, Frame, FrameTable},
+    FILENAME_BSTORE,
 };
 use std::fmt;
 use std::fs::File;
@@ -24,11 +24,11 @@ pub struct BackingStore {
 
 impl BackingStore {
     pub fn build() -> Self {
-        let file = File::open(BACKING_STORE_FILENAME).unwrap();
+        let file = File::open(FILENAME_BSTORE).unwrap();
         let metadata = file.metadata().unwrap();
 
         Self {
-            filename: String::from(BACKING_STORE_FILENAME),
+            filename: String::from(FILENAME_BSTORE),
             reader: BufReader::new(file),
             size_bytes: metadata.len(),
         }
@@ -60,9 +60,10 @@ mod test {
 
         #[test]
         fn read_frame() {
-            let mut frame = table::Frame::new(256);
             let mut store = BackingStore::build();
-            store.read_frame(0, &mut frame).unwrap();
+            let mut ft = FrameTable::build(256, 256);
+            let frame = &mut ft[0];
+            store.read_frame(0, frame).unwrap();
             assert_eq!(frame.buffer[7], 0x01);
             assert_eq!(frame.buffer[11], 0x02);
             assert_eq!(frame.buffer[15], 0x03);

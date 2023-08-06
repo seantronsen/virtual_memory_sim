@@ -1,6 +1,21 @@
-use crate::{FRAME_SIZE, TABLE_SIZE};
+use crate::address::VirtualAddress;
+use crate::backing_store::{self, BackingStore};
+use crate::{SIZE_FRAME, SIZE_TABLE};
 use std::collections::LinkedList;
 use std::ops::{Index, IndexMut};
+
+#[derive(Debug)]
+pub enum Error {
+    StoreError(backing_store::Error),
+    FreeFrameUnavailable,
+}
+type Result<T> = std::result::Result<T, Error>;
+
+impl From<backing_store::Error> for Error {
+    fn from(value: backing_store::Error) -> Self {
+        Error::StoreError(value)
+    }
+}
 
 pub struct Page {
     pub frame_index: usize,
@@ -53,15 +68,29 @@ pub struct Frame {
 
 impl Frame {
     // todo: shouldn't be able to make these outside of a table
-    pub fn new(frame_size: usize) -> Self {
+    fn new(frame_size: u64) -> Self {
         Self {
-            buffer: vec![0 as u8; frame_size],
+            buffer: vec![0 as u8; frame_size as usize],
             valid: false,
         }
     }
 
     pub fn size(&self) -> u64 {
         self.buffer.len() as u64
+    }
+}
+
+impl Index<usize> for Frame {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.buffer[index]
+    }
+}
+
+impl IndexMut<usize> for Frame {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.buffer[index]
     }
 }
 
@@ -83,13 +112,13 @@ impl FreeFrameQueue {
 
 pub struct FrameTable {
     table_size: usize,
-    frame_size: usize,
+    frame_size: u64,
     entries: Vec<Frame>,
     available: FreeFrameQueue,
 }
 
 impl FrameTable {
-    pub fn build(table_size: usize, frame_size: usize) -> Self {
+    pub fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
         let mut available = FreeFrameQueue::new();
 
@@ -107,11 +136,11 @@ impl FrameTable {
         }
     }
 
-    pub fn obtain_available_index(&mut self) -> Option<usize> {
+    pub fn next_available(&mut self) -> Option<usize> {
         self.available.dequeue()
     }
 
-    pub fn reclaim_frame_index(&mut self, index: usize) {
+    pub fn reclaim(&mut self, index: usize) {
         self.entries[index].valid = false;
         self.available.enqueue(index);
     }
@@ -128,6 +157,48 @@ impl Index<usize> for FrameTable {
 impl IndexMut<usize> for FrameTable {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
+    }
+}
+
+pub struct VirtualMemory {
+    pages: PageTable,
+    frames: FrameTable,
+    bstore: BackingStore,
+}
+
+impl VirtualMemory {
+    pub fn build(page_table_size: usize, frame_table_size: usize, frame_size: u64) -> Self {
+        Self {
+            pages: PageTable::build(page_table_size),
+            frames: FrameTable::build(frame_table_size, frame_size),
+            bstore: BackingStore::build(),
+        }
+    }
+
+    pub fn access(&mut self, logical_address: VirtualAddress) -> Result<u8> {
+        let page_number = logical_address.number_page as usize;
+        let offset = logical_address.number_offset as usize;
+
+        if !self.pages[page_number].valid {
+            self.retrieve_page_frame(logical_address.number_page as u64)?;
+        }
+        let page = &self.pages[page_number];
+        let byte_value = &self.frames[page.frame_index][offset];
+        Ok(*byte_value)
+    }
+
+    fn retrieve_page_frame(&mut self, page_number: u64) -> Result<()> {
+        let page = &mut self.pages[page_number as usize];
+        let frame_index = self
+            .frames
+            .next_available()
+            .ok_or(Error::FreeFrameUnavailable)?;
+        let frame = &mut self.frames[frame_index];
+        self.bstore.read_frame(page_number, frame)?;
+        frame.valid = true;
+        page.frame_index = frame_index;
+        page.valid = true;
+        Ok(())
     }
 }
 
@@ -156,8 +227,8 @@ mod tests {
 
         #[test]
         fn build() {
-            let page_table = PageTable::build(TABLE_SIZE);
-            assert_eq!(page_table.table_size, TABLE_SIZE);
+            let page_table = PageTable::build(SIZE_TABLE);
+            assert_eq!(page_table.table_size, SIZE_TABLE);
             assert!(page_table.entries.iter().all(|x| !x.valid));
         }
     }
@@ -169,9 +240,9 @@ mod tests {
 
         #[test]
         fn new() {
-            let frame = Frame::new(FRAME_SIZE);
+            let frame = Frame::new(SIZE_FRAME);
             assert_eq!(frame.valid, false);
-            assert_eq!(frame.buffer.len(), FRAME_SIZE);
+            assert_eq!(frame.buffer.len(), SIZE_FRAME as usize);
             assert!(frame.buffer.iter().all(|x| *x == 0));
         }
     }
@@ -205,11 +276,11 @@ mod tests {
 
         #[test]
         fn new() {
-            let ft = FrameTable::build(TABLE_SIZE, FRAME_SIZE);
-            assert_eq!(ft.available.0.len(), TABLE_SIZE);
-            assert_eq!(ft.entries.len(), TABLE_SIZE);
-            assert_eq!(ft.table_size, TABLE_SIZE);
-            assert_eq!(ft.frame_size, FRAME_SIZE);
+            let ft = FrameTable::build(SIZE_TABLE, SIZE_FRAME);
+            assert_eq!(ft.available.0.len(), SIZE_TABLE);
+            assert_eq!(ft.entries.len(), SIZE_TABLE);
+            assert_eq!(ft.table_size, SIZE_TABLE);
+            assert_eq!(ft.frame_size, SIZE_FRAME);
         }
     }
 }
