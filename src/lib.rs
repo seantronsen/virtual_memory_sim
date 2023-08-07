@@ -3,6 +3,7 @@ mod address;
 mod backing_store;
 mod table;
 mod validator;
+mod stattrack;
 
 use address::AddressReader;
 use backing_store::BackingStore;

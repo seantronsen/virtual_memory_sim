@@ -136,11 +136,11 @@ impl FrameTable {
         }
     }
 
-    pub fn next_available(&mut self) -> Option<usize> {
+    pub fn claim(&mut self) -> Option<usize> {
         self.available.dequeue()
     }
 
-    pub fn reclaim(&mut self, index: usize) {
+    pub fn discard(&mut self, index: usize) {
         self.entries[index].valid = false;
         self.available.enqueue(index);
     }
@@ -191,7 +191,7 @@ impl VirtualMemory {
         let page = &mut self.pages[page_number as usize];
         let frame_index = self
             .frames
-            .next_available()
+            .claim()
             .ok_or(Error::FreeFrameUnavailable)?;
         let frame = &mut self.frames[frame_index];
         self.bstore.read_frame(page_number, frame)?;
