@@ -1,21 +1,10 @@
-use crate::{address::VirtualAddress, table::AccessResult, FILENAME_VALIDATION};
+use crate::{address::VirtualAddress, virtual_memory::AccessResult, FILENAME_VALIDATION};
 use std::{
-    fmt,
     fs::File,
     io::{BufRead, BufReader},
 };
 
-// idea: so for validation, we mostly just need to compare the target byte values for each virtual
-// address. however, it would be a plus to ensure that it also got the correct physical address,
-// but this would require a few additional properties to be implemented elsewhere (namely value
-// tracking during virtual memory access.
-// => validation_entry vs. access_entry
-//
-//
-// for now, just implement a struct to store the 'target' results and compare against the expected
-// value
 pub struct ValidationReader {
-    filename: String,
     reader: BufReader<File>,
     pub line_number: u64,
 }
@@ -25,7 +14,6 @@ impl ValidationReader {
         match File::open(FILENAME_VALIDATION) {
             Err(e) => panic!("error: {:?}", e),
             Ok(ptr) => Self {
-                filename: String::from(FILENAME_VALIDATION),
                 reader: BufReader::new(ptr),
                 line_number: 0,
             },

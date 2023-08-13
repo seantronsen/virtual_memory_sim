@@ -1,14 +1,12 @@
-#![allow(dead_code, unused_imports)]
 mod address;
-mod backing_store;
-mod stattrack;
-mod table;
+mod storage;
+mod tracker;
 mod validator;
+mod virtual_memory;
 
 use address::AddressReader;
-use backing_store::BackingStore;
-use table::VirtualMemory;
 use validator::ValidationReader;
+use virtual_memory::VirtualMemory;
 
 const FILENAME_BSTORE: &str = "BACKING_STORE.bin";
 const FILENAME_VALIDATION: &str = "correct.txt";
@@ -48,21 +46,22 @@ fn run_simulation(simulation: Simulation) {
         mut virtual_memory,
     } = simulation;
 
-    let mut stattracker = stattrack::StatTracker::new();
+    let mut tracker = tracker::Tracker::new();
 
     for (virtual_address, validation_entry) in address_reader.zip(validation_reader) {
         let access_result = virtual_memory
-            .access(virtual_address, &mut stattracker)
+            .access(virtual_address, &mut tracker)
             .unwrap();
         match access_result == validation_entry {
-            true => stattracker.correct_memory_accesses += 1,
+            true => tracker.correct_memory_accesses += 1,
             false => {
+                println!("--------------------------------");
                 println!("expected: {:?}", validation_entry);
                 println!("received: {:?}", access_result);
             }
         }
     }
-    println!("{}", stattracker);
+    println!("{}", tracker);
 }
 
 pub fn runner() {

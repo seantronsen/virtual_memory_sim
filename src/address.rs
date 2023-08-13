@@ -9,13 +9,6 @@ pub struct VirtualAddress {
     extra_bits: u16,
 }
 
-
-impl std::fmt::Display for VirtualAddress {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 impl From<u32> for VirtualAddress {
     fn from(value: u32) -> Self {
         Self {
@@ -26,23 +19,7 @@ impl From<u32> for VirtualAddress {
     }
 }
 
-impl Into<u32> for &VirtualAddress {
-    fn into(self) -> u32 {
-        let VirtualAddress {
-            number_page,
-            number_offset,
-            extra_bits,
-        } = self;
-        let a = (*number_page as u32) << 8;
-        let b = *number_offset as u32;
-        let c = (*extra_bits as u32) << 16;
-
-        a | b | c
-    }
-}
-
 pub struct AddressReader {
-    filename: String,
     reader: BufReader<File>,
     pub line_number: u64,
 }
@@ -52,7 +29,6 @@ impl AddressReader {
         match File::open(FILENAME_ADDRESS) {
             Err(e) => panic!("error: {:?}", e),
             Ok(ptr) => Self {
-                filename: String::from(FILENAME_ADDRESS),
                 reader: BufReader::new(ptr),
                 line_number: 0,
             },
@@ -66,6 +42,7 @@ impl Iterator for AddressReader {
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = String::new();
         match self.reader.read_line(&mut buffer) {
+            Err(err) => panic!("error: {:?}", err),
             Ok(0) => None,
             Ok(_) => {
                 let value = buffer
@@ -75,11 +52,9 @@ impl Iterator for AddressReader {
                 self.line_number += 1;
                 Some(VirtualAddress::from(value))
             }
-            Err(err) => panic!("error: {:?}", err),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -95,7 +70,6 @@ mod tests {
         #[test]
         fn new() {
             let mut reader = AddressReader::new();
-            assert_eq!(reader.filename, FILENAME_ADDRESS);
             assert_eq!(reader.line_number, 0);
             assert_eq!(reader.reader.stream_position().unwrap(), 0);
         }
@@ -120,14 +94,6 @@ mod tests {
             assert_eq!(address.number_offset, 0x34);
             assert_eq!(address.number_page, 0x12);
             assert_eq!(address.extra_bits, 0xabcd);
-        }
-
-        #[test]
-        fn into() {
-            let original: u32 = 16916;
-            let address = VirtualAddress::from(original);
-            let into: u32 = (&address).into();
-            assert_eq!(original, into);
         }
 
         #[test]
