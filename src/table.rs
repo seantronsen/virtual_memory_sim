@@ -1,25 +1,29 @@
 use crate::address::VirtualAddress;
 use crate::backing_store::{self, BackingStore};
+use crate::stattrack::StatTracker;
 use crate::{SIZE_FRAME, SIZE_TABLE, SIZE_TLB};
 use std::collections::{HashMap, LinkedList};
+use std::fmt;
 use std::ops::{Index, IndexMut};
 
 // read from the configuration file to determine which algorithm to use
 // this can be enforced within the build method of the table structs where flags will be set
 // to choose the algorithm features such as a fifo queue or hashtable
 
+/// return errors configured for this module
+type Result<T> = std::result::Result<T, Error>;
+
 #[derive(Debug)]
 pub enum Error {
     StoreError(backing_store::Error),
     FreeFrameUnavailable,
 }
-type Result<T> = std::result::Result<T, Error>;
-
 impl From<backing_store::Error> for Error {
     fn from(value: backing_store::Error) -> Self {
         Error::StoreError(value)
     }
 }
+
 struct Fifo<T>(LinkedList<T>);
 
 impl<T> Fifo<T> {
@@ -35,6 +39,25 @@ impl<T> Fifo<T> {
         self.0.pop_back()
     }
 }
+
+
+/// represents the memory address, used for tracking
+#[derive(Debug, PartialEq)]
+pub struct AccessResult {
+    pub virtual_address: VirtualAddress,
+    pub physical_address: u32,
+    pub value: i8,
+}
+impl fmt::Display for AccessResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "virtual address: {}\tphysical address: {}\tvalue: {}",
+            self.virtual_address, self.physical_address, self.value
+        )
+    }
+}
+
 pub struct Page {
     pub frame_index: usize,
     pub valid: bool,
@@ -49,13 +72,13 @@ impl Page {
     }
 }
 
-pub struct PageTable {
+struct PageTable {
     table_size: usize,
     entries: Vec<Page>,
 }
 
 impl PageTable {
-    pub fn build(table_size: usize) -> Self {
+    fn build(table_size: usize) -> Self {
         let mut entries: Vec<Page> = Vec::with_capacity(table_size);
         (0..table_size).for_each(|_| entries.push(Page::new(0)));
         Self {
@@ -79,7 +102,6 @@ impl IndexMut<usize> for PageTable {
     }
 }
 
-/// todo: upgrade this to use a hashed lookup
 struct TLB {
     table_size: usize,
     map: HashMap<usize, usize>,
@@ -218,31 +240,39 @@ impl VirtualMemory {
         }
     }
 
-    /// idea:
-    /// 1. give a logical address, we first need to parse it into the correct physical parts for
-    /// memory access.
-    /// 2. check the page number against the TLB
-    /// 3. check the page number against the page table
-    /// 4. obtain the target frame and adjust the tables in case of any faults
-    /// 5. return the value
-    pub fn access(&mut self, logical_address: VirtualAddress) -> Result<u8> {
+    pub fn access(
+        &mut self,
+        logical_address: VirtualAddress,
+        stattrack: &mut StatTracker,
+    ) -> Result<AccessResult> {
         let page_number = logical_address.number_page as usize;
         let offset = logical_address.number_offset as usize;
 
         let frame_index = match self.tlb.find(page_number) {
-            Some(x) => *x,
+            Some(x) => {
+                stattrack.tlb_hits += 1;
+                *x
+            }
             None => {
-                if !self.pages[page_number].valid {
-                    self.retrieve_page_frame(logical_address.number_page as u64)?;
-                }
+                stattrack.tlb_faults += 1;
+                match self.pages[page_number].valid {
+                    true => stattrack.page_hits += 1,
+                    false => {
+                        stattrack.page_faults += 1;
+                        self.retrieve_page_frame(logical_address.number_page as u64)?;
+                    }
+                };
                 let index = self.pages[page_number].frame_index;
                 self.tlb.replace(page_number, index);
                 index
             }
         };
 
-        let byte_value = &self.frames[frame_index][offset];
-        Ok(*byte_value)
+        Ok(AccessResult {
+            virtual_address: logical_address,
+            physical_address: frame_index as u32 * self.frames.frame_size as u32 + offset as u32,
+            value: self.frames[frame_index][offset] as i8,
+        })
     }
 
     fn retrieve_page_frame(&mut self, page_number: u64) -> Result<()> {

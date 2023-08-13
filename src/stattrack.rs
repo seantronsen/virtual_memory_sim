@@ -21,13 +21,10 @@ use std::ops::{Add, AddAssign};
 pub struct StatTracker {
     pub page_faults: usize,
     pub page_hits: usize,
-    pub page_replacements: usize,
     pub tlb_faults: usize,
     pub tlb_hits: usize,
-    pub tlb_replacements: usize,
     pub frame_hits: usize,
     pub frame_faults: usize,
-    pub frame_replacements: usize,
     pub correct_memory_accesses: usize,
 }
 
@@ -36,13 +33,10 @@ impl StatTracker {
         Self {
             page_faults: 0,
             page_hits: 0,
-            page_replacements: 0,
             tlb_faults: 0,
             tlb_hits: 0,
-            tlb_replacements: 0,
             frame_hits: 0,
             frame_faults: 0,
-            frame_replacements: 0,
             correct_memory_accesses: 0,
         }
     }
@@ -55,13 +49,10 @@ impl Add<StatTracker> for StatTracker {
         Self::Output {
             page_faults: self.page_faults + rhs.page_faults,
             page_hits: self.page_hits + rhs.page_hits,
-            page_replacements: self.page_replacements + rhs.page_replacements,
             tlb_faults: self.tlb_faults + rhs.tlb_faults,
             tlb_hits: self.tlb_hits + rhs.tlb_hits,
-            tlb_replacements: self.tlb_replacements + rhs.tlb_replacements,
             frame_hits: self.frame_hits + rhs.frame_hits,
             frame_faults: self.frame_faults + rhs.frame_faults,
-            frame_replacements: self.frame_replacements + rhs.frame_replacements,
             correct_memory_accesses: self.correct_memory_accesses + rhs.correct_memory_accesses,
         }
     }
@@ -82,24 +73,18 @@ Stats Tracked
 ---------------------------------
 page_faults:             {:08}
 page_hits:               {:08}
-page_replacements:       {:08}
 tlb_faults:              {:08}
 tlb_hits:                {:08}
-tlb_replacements:        {:08}
 frame_hits:              {:08}
 frame_faults:            {:08}
-frame_replacements:      {:08}
 correct_memory_accesses: {:08}
                ",
             self.page_faults,
             self.page_hits,
-            self.page_replacements,
             self.tlb_faults,
             self.tlb_hits,
-            self.tlb_replacements,
             self.frame_hits,
             self.frame_faults,
-            self.frame_replacements,
             self.correct_memory_accesses,
         )
     }
@@ -118,13 +103,10 @@ mod tests {
             let tracker = StatTracker::new();
             assert_eq!(tracker.page_faults, 0);
             assert_eq!(tracker.page_hits, 0);
-            assert_eq!(tracker.page_replacements, 0);
             assert_eq!(tracker.tlb_faults, 0);
             assert_eq!(tracker.tlb_hits, 0);
-            assert_eq!(tracker.tlb_replacements, 0);
             assert_eq!(tracker.frame_hits, 0);
             assert_eq!(tracker.frame_faults, 0);
-            assert_eq!(tracker.frame_replacements, 0);
             assert_eq!(tracker.correct_memory_accesses, 0);
         }
 

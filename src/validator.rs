@@ -1,4 +1,4 @@
-use crate::{address::VirtualAddress, FILENAME_VALIDATION};
+use crate::{address::VirtualAddress, table::AccessResult, FILENAME_VALIDATION};
 use std::{
     fmt,
     fs::File,
@@ -14,43 +14,6 @@ use std::{
 //
 // for now, just implement a struct to store the 'target' results and compare against the expected
 // value
-
-
-pub struct TranslatedAddress {
-    logical: VirtualAddress,
-    frame_index: usize,
-    frame_size: u64,
-}
-
-impl TranslatedAddress {
-    fn new(logical: VirtualAddress, frame_index: usize, frame_size: u64) -> Self {
-        Self {
-            logical,
-            frame_index,
-            frame_size,
-        }
-    }
-}
-
-impl fmt::Display for TranslatedAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let frame_start = self.frame_index * self.frame_size as usize;
-        let physical_address = frame_start + self.logical.number_offset as usize;
-        write!(
-            f,
-            "virtual address: `{}`\tframe number: {}\tphysical address: {}",
-            self.logical, self.frame_index, physical_address
-        )
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ValidationEntry {
-    pub virtual_address: VirtualAddress,
-    pub physical_address: u32,
-    pub value: i8,
-}
-
 pub struct ValidationReader {
     filename: String,
     reader: BufReader<File>,
@@ -71,7 +34,7 @@ impl ValidationReader {
 }
 
 impl Iterator for ValidationReader {
-    type Item = ValidationEntry;
+    type Item = AccessResult;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = String::new();
@@ -81,7 +44,7 @@ impl Iterator for ValidationReader {
             Ok(_) => {
                 self.line_number += 1;
                 let values = buffer.trim().split(' ').collect::<Vec<&str>>();
-                Some(ValidationEntry {
+                Some(AccessResult {
                     virtual_address: VirtualAddress::from(values[2].parse::<u32>().unwrap()),
                     physical_address: values[5].parse::<u32>().unwrap(),
                     value: values[7].parse::<i8>().unwrap(),
@@ -102,17 +65,17 @@ mod tests {
 
         #[test]
         fn equals() {
-            let a = ValidationEntry {
+            let a = AccessResult {
                 virtual_address: VirtualAddress::from(32),
                 physical_address: 64,
                 value: 14,
             };
-            let b = ValidationEntry {
+            let b = AccessResult {
                 virtual_address: VirtualAddress::from(32),
                 physical_address: 64,
                 value: 14,
             };
-            let c = ValidationEntry {
+            let c = AccessResult {
                 virtual_address: VirtualAddress::from(33),
                 physical_address: 64,
                 value: 14,
@@ -132,7 +95,7 @@ mod tests {
             let mut reader = ValidationReader::new();
             assert_eq!(
                 reader.next().unwrap(),
-                ValidationEntry {
+                AccessResult {
                     virtual_address: VirtualAddress::from(16916),
                     physical_address: 20,
                     value: 0,
@@ -141,7 +104,7 @@ mod tests {
 
             assert_eq!(
                 reader.last().unwrap(),
-                ValidationEntry {
+                AccessResult {
                     virtual_address: VirtualAddress::from(12107),
                     physical_address: 2635,
                     value: -46,

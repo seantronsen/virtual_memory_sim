@@ -51,14 +51,14 @@ fn run_simulation(simulation: Simulation) {
     let mut stattracker = stattrack::StatTracker::new();
 
     for (virtual_address, validation_entry) in address_reader.zip(validation_reader) {
-        let byte = virtual_memory.access(virtual_address).unwrap();
-        match byte as i8 == validation_entry.value {
+        let access_result = virtual_memory
+            .access(virtual_address, &mut stattracker)
+            .unwrap();
+        match access_result == validation_entry {
             true => stattracker.correct_memory_accesses += 1,
             false => {
-                println!(
-                    "byte value: {}\t expected: {}",
-                    byte as i8, validation_entry.value
-                );
+                println!("expected: {:?}", validation_entry);
+                println!("received: {:?}", access_result);
             }
         }
     }

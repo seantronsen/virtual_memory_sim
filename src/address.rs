@@ -9,6 +9,13 @@ pub struct VirtualAddress {
     extra_bits: u16,
 }
 
+
+impl std::fmt::Display for VirtualAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
 impl From<u32> for VirtualAddress {
     fn from(value: u32) -> Self {
         Self {
@@ -73,44 +80,6 @@ impl Iterator for AddressReader {
     }
 }
 
-pub struct TranslatedAddress {
-    logical: VirtualAddress,
-    frame_index: usize,
-    frame_size: u64,
-}
-
-impl TranslatedAddress {
-    fn new(logical: VirtualAddress, frame_index: usize, frame_size: u64) -> Self {
-        Self {
-            logical,
-            frame_index,
-            frame_size,
-        }
-    }
-}
-
-impl std::fmt::Display for VirtualAddress {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let logical: u32 = self.clone().into();
-        write!(
-            f,
-            "logical: {}\tpage number: {}\toffset: {}",
-            logical, self.number_page, self.number_offset
-        )
-    }
-}
-
-impl std::fmt::Display for TranslatedAddress {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let frame_start = self.frame_index * self.frame_size as usize;
-        let physical_address = frame_start + self.logical.number_offset as usize;
-        write!(
-            f,
-            "virtual address: `{}`\tframe number: {}\tphysical address: {}",
-            self.logical, self.frame_index, physical_address
-        )
-    }
-}
 
 #[cfg(test)]
 mod tests {
