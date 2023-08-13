@@ -1,32 +1,49 @@
 use std::ops::{Add, AddAssign};
 
+/* IDEA:
+ * Tracking the statistics of each memory operation will likely look messy so it may be best to
+ * hold off on the feature addition to the simulation until later, when it's complete. Still, we
+ * can scheme for the idea so it's ready to go when the time comes.
+ *
+ * Overall, the simplest approach would be to have a statistical store of information that we can
+ * modify as needed. However, this would require a sleu of mutable references which might drag us
+ * down to hell. As such, it will be simpler to create objects as needed and combine them when
+ * appropriate.
+ *
+ * Our current issue with this approach is that it's exceptionally verbose. Any time the programmer
+ * wishes to add any tracked stats, they will have to initialize an object and modify it before
+ * passing it back.
+ *
+ *
+ */
+
 #[derive(Debug, PartialEq, Copy, Clone)]
-struct StatTracker {
-    num_page_faults: usize,
-    num_page_hits: usize,
-    num_page_replacements: usize,
-    num_tlb_faults: usize,
-    num_tlb_hits: usize,
-    num_tlb_replacements: usize,
-    num_frame_hits: usize,
-    num_frame_faults: usize,
-    num_frame_replacements: usize,
-    num_correct_memory_accesses: usize,
+pub struct StatTracker {
+    pub page_faults: usize,
+    pub page_hits: usize,
+    pub page_replacements: usize,
+    pub tlb_faults: usize,
+    pub tlb_hits: usize,
+    pub tlb_replacements: usize,
+    pub frame_hits: usize,
+    pub frame_faults: usize,
+    pub frame_replacements: usize,
+    pub correct_memory_accesses: usize,
 }
 
 impl StatTracker {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            num_page_faults: 0,
-            num_page_hits: 0,
-            num_page_replacements: 0,
-            num_tlb_faults: 0,
-            num_tlb_hits: 0,
-            num_tlb_replacements: 0,
-            num_frame_hits: 0,
-            num_frame_faults: 0,
-            num_frame_replacements: 0,
-            num_correct_memory_accesses: 0,
+            page_faults: 0,
+            page_hits: 0,
+            page_replacements: 0,
+            tlb_faults: 0,
+            tlb_hits: 0,
+            tlb_replacements: 0,
+            frame_hits: 0,
+            frame_faults: 0,
+            frame_replacements: 0,
+            correct_memory_accesses: 0,
         }
     }
 }
@@ -36,17 +53,16 @@ impl Add<StatTracker> for StatTracker {
 
     fn add(self, rhs: StatTracker) -> Self::Output {
         Self::Output {
-            num_page_faults: self.num_page_faults + rhs.num_page_faults,
-            num_page_hits: self.num_page_hits + rhs.num_page_hits,
-            num_page_replacements: self.num_page_replacements + rhs.num_page_replacements,
-            num_tlb_faults: self.num_tlb_faults + rhs.num_tlb_faults,
-            num_tlb_hits: self.num_tlb_hits + rhs.num_tlb_hits,
-            num_tlb_replacements: self.num_tlb_replacements + rhs.num_tlb_replacements,
-            num_frame_hits: self.num_frame_hits + rhs.num_frame_hits,
-            num_frame_faults: self.num_frame_faults + rhs.num_frame_faults,
-            num_frame_replacements: self.num_frame_replacements + rhs.num_frame_replacements,
-            num_correct_memory_accesses: self.num_correct_memory_accesses
-                + rhs.num_correct_memory_accesses,
+            page_faults: self.page_faults + rhs.page_faults,
+            page_hits: self.page_hits + rhs.page_hits,
+            page_replacements: self.page_replacements + rhs.page_replacements,
+            tlb_faults: self.tlb_faults + rhs.tlb_faults,
+            tlb_hits: self.tlb_hits + rhs.tlb_hits,
+            tlb_replacements: self.tlb_replacements + rhs.tlb_replacements,
+            frame_hits: self.frame_hits + rhs.frame_hits,
+            frame_faults: self.frame_faults + rhs.frame_faults,
+            frame_replacements: self.frame_replacements + rhs.frame_replacements,
+            correct_memory_accesses: self.correct_memory_accesses + rhs.correct_memory_accesses,
         }
     }
 }
@@ -64,27 +80,67 @@ impl std::fmt::Display for StatTracker {
             "
 Stats Tracked
 --------------------------------------------------
-num_page_faults: {:08},
-num_page_hits: {:08},
-num_page_replacements: {:08},
-num_tlb_faults: {:08},
-num_tlb_hits: {:08},
-num_tlb_replacements: {:08},
-num_frame_hits: {:08},
-num_frame_faults: {:08},
-num_frame_replacements: {:08},
-num_correct_memory_accesses: {:08},
+page_faults: {:08},
+page_hits: {:08},
+page_replacements: {:08},
+tlb_faults: {:08},
+tlb_hits: {:08},
+tlb_replacements: {:08},
+frame_hits: {:08},
+frame_faults: {:08},
+frame_replacements: {:08},
+correct_memory_accesses: {:08},
                ",
-            self.num_page_faults,
-            self.num_page_hits,
-            self.num_page_replacements,
-            self.num_tlb_faults,
-            self.num_tlb_hits,
-            self.num_tlb_replacements,
-            self.num_frame_hits,
-            self.num_frame_faults,
-            self.num_frame_replacements,
-            self.num_correct_memory_accesses,
+            self.page_faults,
+            self.page_hits,
+            self.page_replacements,
+            self.tlb_faults,
+            self.tlb_hits,
+            self.tlb_replacements,
+            self.frame_hits,
+            self.frame_faults,
+            self.frame_replacements,
+            self.correct_memory_accesses,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(test)]
+    mod stattracker_tests {
+
+        use super::*;
+
+        #[test]
+        fn new() {
+            let tracker = StatTracker::new();
+            assert_eq!(tracker.page_faults, 0);
+            assert_eq!(tracker.page_hits, 0);
+            assert_eq!(tracker.page_replacements, 0);
+            assert_eq!(tracker.tlb_faults, 0);
+            assert_eq!(tracker.tlb_hits, 0);
+            assert_eq!(tracker.tlb_replacements, 0);
+            assert_eq!(tracker.frame_hits, 0);
+            assert_eq!(tracker.frame_faults, 0);
+            assert_eq!(tracker.frame_replacements, 0);
+            assert_eq!(tracker.correct_memory_accesses, 0);
+        }
+
+        #[test]
+        fn equals() {
+            assert_eq!(StatTracker::new(), StatTracker::new());
+        }
+
+        #[test]
+        fn add() {
+            let (mut a, mut b) = (StatTracker::new(), StatTracker::new());
+            a.page_hits += 1;
+            b.page_faults += 5;
+            a += b;
+            assert!(a.page_hits == 1);
+            assert!(a.page_faults == 5);
+        }
     }
 }

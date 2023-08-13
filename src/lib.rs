@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_imports)]
 mod address;
 mod backing_store;
+mod stattrack;
 mod table;
 mod validator;
-mod stattrack;
 
 use address::AddressReader;
 use backing_store::BackingStore;
@@ -13,6 +13,7 @@ const FILENAME_BSTORE: &str = "BACKING_STORE.bin";
 const FILENAME_VALIDATION: &str = "correct.txt";
 const FILENAME_ADDRESS: &str = "addresses.txt";
 const SIZE_TABLE: usize = 256;
+const SIZE_TLB: usize = 16;
 const SIZE_FRAME: u64 = 256;
 const MASK_PAGE: u32 = 0x0000FF00;
 const MASK_OFFSET: u32 = 0x000000FF;
@@ -24,17 +25,17 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn build(num_pages: usize, num_frames: usize, frame_size: u64) -> Self {
+    pub fn build(tlb_size: usize, num_pages: usize, num_frames: usize, frame_size: u64) -> Self {
         Self {
             address_reader: AddressReader::new(),
-            virtual_memory: VirtualMemory::build(num_pages, num_frames, frame_size),
+            virtual_memory: VirtualMemory::build(tlb_size, num_pages, num_frames, frame_size),
         }
     }
 }
 
 // function header for use later
 fn prepare_simulation() -> Simulation {
-    Simulation::build(SIZE_TABLE, SIZE_TABLE, SIZE_FRAME)
+    Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_TABLE, SIZE_FRAME)
 }
 
 fn run_simulation(simulation: Simulation) {

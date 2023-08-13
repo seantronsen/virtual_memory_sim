@@ -1,8 +1,12 @@
 use crate::address::VirtualAddress;
 use crate::backing_store::{self, BackingStore};
-use crate::{SIZE_FRAME, SIZE_TABLE};
-use std::collections::LinkedList;
+use crate::{SIZE_FRAME, SIZE_TABLE, SIZE_TLB};
+use std::collections::{HashMap, LinkedList};
 use std::ops::{Index, IndexMut};
+
+// read from the configuration file to determine which algorithm to use
+// this can be enforced within the build method of the table structs where flags will be set
+// to choose the algorithm features such as a fifo queue or hashtable
 
 #[derive(Debug)]
 pub enum Error {
@@ -16,7 +20,21 @@ impl From<backing_store::Error> for Error {
         Error::StoreError(value)
     }
 }
+struct Fifo<T>(LinkedList<T>);
 
+impl<T> Fifo<T> {
+    fn new() -> Self {
+        Self(LinkedList::new())
+    }
+
+    fn enqueue(&mut self, free_index: T) {
+        self.0.push_front(free_index);
+    }
+
+    fn dequeue(&mut self) -> Option<T> {
+        self.0.pop_back()
+    }
+}
 pub struct Page {
     pub frame_index: usize,
     pub valid: bool,
@@ -61,6 +79,40 @@ impl IndexMut<usize> for PageTable {
     }
 }
 
+/// todo: upgrade this to use a hashed lookup
+struct TLB {
+    table_size: usize,
+    map: HashMap<usize, usize>,
+    victimizer: Fifo<usize>,
+}
+
+impl TLB {
+    fn build(table_size: usize) -> Self {
+        let fifo = Fifo::new();
+        Self {
+            table_size,
+            map: HashMap::new(),
+            victimizer: fifo,
+        }
+    }
+
+    /// return tlb mapping as ref if possible, else none
+    /// returning none implies a tlb fault
+    fn find(&self, page_number: usize) -> Option<&usize> {
+        self.map.get(&page_number)
+    }
+
+    /// if not at size, simple insert, else replace
+    fn replace(&mut self, key: usize, value: usize) {
+        if self.map.len() == self.table_size {
+            let victim = self.victimizer.dequeue().unwrap();
+            self.map.remove(&victim).unwrap();
+        }
+        self.map.insert(key, value);
+        self.victimizer.enqueue(key);
+    }
+}
+
 pub struct Frame {
     pub buffer: Vec<u8>,
     pub valid: bool,
@@ -94,33 +146,17 @@ impl IndexMut<usize> for Frame {
     }
 }
 
-struct FreeFrameQueue(LinkedList<usize>);
-
-impl FreeFrameQueue {
-    fn new() -> Self {
-        Self(LinkedList::new())
-    }
-
-    fn enqueue(&mut self, free_index: usize) {
-        self.0.push_front(free_index);
-    }
-
-    fn dequeue(&mut self) -> Option<usize> {
-        self.0.pop_back()
-    }
-}
-
 pub struct FrameTable {
     table_size: usize,
     frame_size: u64,
     entries: Vec<Frame>,
-    available: FreeFrameQueue,
+    available: Fifo<usize>,
 }
 
 impl FrameTable {
     pub fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
-        let mut available = FreeFrameQueue::new();
+        let mut available = Fifo::new();
 
         (0..table_size).for_each(|index| {
             let frame = Frame::new(frame_size);
@@ -161,38 +197,57 @@ impl IndexMut<usize> for FrameTable {
 }
 
 pub struct VirtualMemory {
+    tlb: TLB,
     pages: PageTable,
     frames: FrameTable,
     bstore: BackingStore,
 }
 
 impl VirtualMemory {
-    pub fn build(page_table_size: usize, frame_table_size: usize, frame_size: u64) -> Self {
+    pub fn build(
+        tlb_size: usize,
+        page_table_size: usize,
+        frame_table_size: usize,
+        frame_size: u64,
+    ) -> Self {
         Self {
+            tlb: TLB::build(tlb_size),
             pages: PageTable::build(page_table_size),
             frames: FrameTable::build(frame_table_size, frame_size),
             bstore: BackingStore::build(),
         }
     }
 
+    /// idea:
+    /// 1. give a logical address, we first need to parse it into the correct physical parts for
+    /// memory access.
+    /// 2. check the page number against the TLB
+    /// 3. check the page number against the page table
+    /// 4. obtain the target frame and adjust the tables in case of any faults
+    /// 5. return the value
     pub fn access(&mut self, logical_address: VirtualAddress) -> Result<u8> {
         let page_number = logical_address.number_page as usize;
         let offset = logical_address.number_offset as usize;
 
-        if !self.pages[page_number].valid {
-            self.retrieve_page_frame(logical_address.number_page as u64)?;
-        }
-        let page = &self.pages[page_number];
-        let byte_value = &self.frames[page.frame_index][offset];
+        let frame_index = match self.tlb.find(page_number) {
+            Some(x) => *x,
+            None => {
+                if !self.pages[page_number].valid {
+                    self.retrieve_page_frame(logical_address.number_page as u64)?;
+                }
+                let index = self.pages[page_number].frame_index;
+                self.tlb.replace(page_number, index);
+                index
+            }
+        };
+
+        let byte_value = &self.frames[frame_index][offset];
         Ok(*byte_value)
     }
 
     fn retrieve_page_frame(&mut self, page_number: u64) -> Result<()> {
         let page = &mut self.pages[page_number as usize];
-        let frame_index = self
-            .frames
-            .claim()
-            .ok_or(Error::FreeFrameUnavailable)?;
+        let frame_index = self.frames.claim().ok_or(Error::FreeFrameUnavailable)?;
         let frame = &mut self.frames[frame_index];
         self.bstore.read_frame(page_number, frame)?;
         frame.valid = true;
@@ -248,19 +303,19 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod free_frame_queue_tests {
+    mod fifo_tests {
 
         use super::*;
 
         #[test]
         fn new() {
-            let ffq = FreeFrameQueue::new();
+            let ffq = Fifo::<usize>::new();
             assert_eq!(ffq.0.len(), 0);
         }
 
         #[test]
         fn enqueue_dequeue() {
-            let mut ffq = FreeFrameQueue::new();
+            let mut ffq = Fifo::new();
             let values = 0..10;
             values.clone().for_each(|x| ffq.enqueue(x));
             values
@@ -281,6 +336,34 @@ mod tests {
             assert_eq!(ft.entries.len(), SIZE_TABLE);
             assert_eq!(ft.table_size, SIZE_TABLE);
             assert_eq!(ft.frame_size, SIZE_FRAME);
+        }
+    }
+
+    #[cfg(test)]
+    mod tlb_tests {
+
+        use super::*;
+        const SIZE_TEST: usize = 3;
+
+        #[test]
+        fn build() {
+            let tlb = TLB::build(SIZE_TEST);
+            assert_eq!(tlb.victimizer.0.len(), 0);
+            assert_eq!(tlb.map.len(), 0);
+            assert_eq!(tlb.table_size, SIZE_TEST);
+        }
+
+        #[test]
+        fn find_and_replace() {
+            let mut tlb = TLB::build(SIZE_TEST);
+
+            (0..5).for_each(|x| {
+                assert!(tlb.find(x).is_none());
+                tlb.replace(x, x);
+                assert!(tlb.find(x).is_some());
+            });
+
+            assert!(tlb.find(0).is_none());
         }
     }
 }
