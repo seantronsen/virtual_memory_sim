@@ -8,6 +8,7 @@ mod validator;
 use address::AddressReader;
 use backing_store::BackingStore;
 use table::VirtualMemory;
+use validator::ValidationReader;
 
 const FILENAME_BSTORE: &str = "BACKING_STORE.bin";
 const FILENAME_VALIDATION: &str = "correct.txt";
@@ -22,12 +23,14 @@ const MASK_OFFSET: u32 = 0x000000FF;
 pub struct Simulation {
     virtual_memory: VirtualMemory,
     address_reader: AddressReader,
+    validation_reader: ValidationReader,
 }
 
 impl Simulation {
     pub fn build(tlb_size: usize, num_pages: usize, num_frames: usize, frame_size: u64) -> Self {
         Self {
             address_reader: AddressReader::new(),
+            validation_reader: ValidationReader::new(),
             virtual_memory: VirtualMemory::build(tlb_size, num_pages, num_frames, frame_size),
         }
     }
@@ -41,13 +44,25 @@ fn prepare_simulation() -> Simulation {
 fn run_simulation(simulation: Simulation) {
     let Simulation {
         address_reader,
+        validation_reader,
         mut virtual_memory,
     } = simulation;
 
-    for virtual_address in address_reader {
+    let mut stattracker = stattrack::StatTracker::new();
+
+    for (virtual_address, validation_entry) in address_reader.zip(validation_reader) {
         let byte = virtual_memory.access(virtual_address).unwrap();
-        println!("byte value: {}", byte as i8);
+        match byte as i8 == validation_entry.value {
+            true => stattracker.correct_memory_accesses += 1,
+            false => {
+                println!(
+                    "byte value: {}\t expected: {}",
+                    byte as i8, validation_entry.value
+                );
+            }
+        }
     }
+    println!("{}", stattracker);
 }
 
 pub fn runner() {

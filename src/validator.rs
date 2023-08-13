@@ -46,9 +46,9 @@ impl fmt::Display for TranslatedAddress {
 
 #[derive(Debug, PartialEq)]
 pub struct ValidationEntry {
-    virtual_address: VirtualAddress,
-    physical_address: u32,
-    value: i8,
+    pub virtual_address: VirtualAddress,
+    pub physical_address: u32,
+    pub value: i8,
 }
 
 pub struct ValidationReader {

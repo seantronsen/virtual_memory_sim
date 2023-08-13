@@ -79,17 +79,17 @@ impl std::fmt::Display for StatTracker {
             f,
             "
 Stats Tracked
---------------------------------------------------
-page_faults: {:08},
-page_hits: {:08},
-page_replacements: {:08},
-tlb_faults: {:08},
-tlb_hits: {:08},
-tlb_replacements: {:08},
-frame_hits: {:08},
-frame_faults: {:08},
-frame_replacements: {:08},
-correct_memory_accesses: {:08},
+---------------------------------
+page_faults:             {:08}
+page_hits:               {:08}
+page_replacements:       {:08}
+tlb_faults:              {:08}
+tlb_hits:                {:08}
+tlb_replacements:        {:08}
+frame_hits:              {:08}
+frame_faults:            {:08}
+frame_replacements:      {:08}
+correct_memory_accesses: {:08}
                ",
             self.page_faults,
             self.page_hits,
