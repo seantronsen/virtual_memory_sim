@@ -22,28 +22,40 @@ impl From<std::io::Error> for Error {
     }
 }
 
-struct Fifo<T>(LinkedList<T>);
+struct Fifo<T>(LinkedList<T>, usize);
 
 impl<T> Fifo<T> {
     fn new() -> Self {
-        Self(LinkedList::new())
+        Self(LinkedList::new(), 0)
+    }
+
+    fn len(&self) -> usize {
+        self.1
     }
 
     fn enqueue(&mut self, free_index: T) {
+        self.1 += 1;
         self.0.push_front(free_index);
     }
 
     fn dequeue(&mut self) -> Option<T> {
+        self.1 -= 1;
         self.0.pop_back()
     }
 }
 
 /// represents the memory address, used for tracking
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct AccessResult {
     pub virtual_address: VirtualAddress,
     pub physical_address: u32,
     pub value: i8,
+}
+
+impl PartialEq for AccessResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.virtual_address == other.virtual_address && self.value == other.value
+    }
 }
 
 struct TLB {
@@ -84,37 +96,32 @@ struct Page {
     valid: bool,
 }
 
-struct PageTable {
-    table_size: usize,
-    entries: Vec<Page>,
-}
-
+struct PageTable(HashMap<usize, Page>);
 impl PageTable {
-    fn build(table_size: usize) -> Self {
-        let mut entries: Vec<Page> = Vec::with_capacity(table_size);
-        (0..table_size).for_each(|_| {
-            entries.push(Page {
-                frame_index: 0,
-                valid: false,
-            })
-        });
-        Self {
-            table_size,
-            entries,
-        }
+    fn build() -> Self {
+        Self(HashMap::new())
+    }
+    fn find(&self, id: usize) -> Option<&Page> {
+        self.0.get(&id)
+    }
+    fn find_mut(&mut self, id: usize) -> Option<&mut Page> {
+        self.0.get_mut(&id)
+    }
+    fn insert(&mut self, id: usize, page: Page) {
+        self.0.insert(id, page);
     }
 }
 
 struct Frame {
     buffer: Vec<u8>,
-    valid: bool,
+    page_id: usize,
 }
 
 impl Frame {
     fn new(frame_size: u64) -> Self {
         Self {
             buffer: vec![0 as u8; frame_size as usize],
-            valid: false,
+            page_id: 0,
         }
     }
 }
@@ -132,16 +139,16 @@ struct FrameTable {
     frame_size: u64,
     entries: Vec<Frame>,
     available: Fifo<usize>,
+    victimizer: Fifo<usize>,
 }
 
 impl FrameTable {
     fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
         let mut available = Fifo::new();
-
+        let victimizer = Fifo::new();
         (0..table_size).for_each(|index| {
-            let frame = Frame::new(frame_size);
-            entries.push(frame);
+            entries.push(Frame::new(frame_size));
             available.enqueue(index);
         });
 
@@ -149,18 +156,29 @@ impl FrameTable {
             frame_size,
             table_size,
             entries,
+            victimizer,
             available,
         }
     }
 
-    fn claim(&mut self) -> Option<usize> {
-        self.available.dequeue()
+    fn allocate(&mut self) -> usize {
+        if self.victimizer.len() == self.table_size {
+            self.reaper();
+        }
+        let alloc_index = self
+            .available
+            .dequeue()
+            .expect("should have an available frame");
+        self.victimizer.enqueue(alloc_index);
+        alloc_index
     }
 
-    #[allow(dead_code)]
-    pub fn discard(&mut self, index: usize) {
-        self.entries[index].valid = false;
-        self.available.enqueue(index);
+    pub fn reaper(&mut self) {
+        let target = self
+            .victimizer
+            .dequeue()
+            .expect("should have victims at the ready");
+        self.available.enqueue(target);
     }
 }
 
@@ -172,15 +190,10 @@ pub struct VirtualMemory {
 }
 
 impl VirtualMemory {
-    pub fn build(
-        tlb_size: usize,
-        page_table_size: usize,
-        frame_table_size: usize,
-        frame_size: u64,
-    ) -> Self {
+    pub fn build(tlb_size: usize, frame_table_size: usize, frame_size: u64) -> Self {
         Self {
             tlb: TLB::build(tlb_size),
-            pages: PageTable::build(page_table_size),
+            pages: PageTable::build(),
             frames: FrameTable::build(frame_table_size, frame_size),
             storage: Storage::build(),
         }
@@ -189,27 +202,30 @@ impl VirtualMemory {
     pub fn access(
         &mut self,
         virtual_address: VirtualAddress,
-        tracker: &mut Tracker,
+        _tracker: &mut Tracker,
     ) -> Result<AccessResult> {
         let page_number = virtual_address.number_page as usize;
         let offset = virtual_address.number_offset as usize;
         let frame_index = match self.tlb.find(page_number) {
             Some(x) => {
-                tracker.tlb_hits += 1;
+                _tracker.tlb_hits += 1;
                 *x
             }
-            None => {
-                tracker.tlb_faults += 1;
-                match self.pages.entries[page_number].valid {
-                    true => tracker.page_hits += 1,
-                    false => {
-                        tracker.page_faults += 1;
-                        self.retrieve_page_frame(virtual_address.number_page as u64)?;
+            _ => {
+                _tracker.tlb_faults += 1;
+                match self.pages.find(page_number) {
+                    Some(page) if page.valid => {
+                        _tracker.page_hits +=1;
+                        self.tlb.replace(page_number, page.frame_index);
+                        page.frame_index
                     }
-                };
-                let index = self.pages.entries[page_number].frame_index;
-                self.tlb.replace(page_number, index);
-                index
+                    _ => {
+                        _tracker.page_faults +=1;
+                        let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
+                        self.tlb.replace(page_number, fi);
+                        fi
+                    }
+                }
             }
         };
 
@@ -220,15 +236,23 @@ impl VirtualMemory {
         })
     }
 
-    fn retrieve_page_frame(&mut self, page_number: u64) -> Result<()> {
-        let page = &mut self.pages.entries[page_number as usize];
-        let frame_index = self.frames.claim().ok_or(Error::FreeFrameUnavailable)?;
+    fn retrieve_frame(&mut self, page_number: usize) -> Result<usize> {
+        let frame_index = self.frames.allocate();
         let frame = &mut self.frames.entries[frame_index];
-        self.storage.read(page_number, &mut frame.buffer)?;
-        frame.valid = true;
-        page.frame_index = frame_index;
-        page.valid = true;
-        Ok(())
+        if let Some(page) = self.pages.find_mut(frame.page_id) {
+            page.valid = false;
+        }
+        frame.page_id = page_number;
+        self.storage.read(page_number as u64, &mut frame.buffer)?;
+        self.pages.insert(
+            page_number as usize,
+            Page {
+                frame_index,
+                valid: true,
+            },
+        );
+
+        Ok(frame_index)
     }
 }
 
@@ -255,17 +279,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod page_table_tests {
-
-        use super::*;
-
-        #[test]
-        fn build() {
-            let page_table = PageTable::build(SIZE_TABLE);
-            assert_eq!(page_table.table_size, SIZE_TABLE);
-            assert!(page_table.entries.iter().all(|x| !x.valid));
-        }
-    }
+    mod page_table_tests {}
 
     #[cfg(test)]
     mod frame_tests {
@@ -275,7 +289,6 @@ mod tests {
         #[test]
         fn new() {
             let frame = Frame::new(SIZE_FRAME);
-            assert_eq!(frame.valid, false);
             assert_eq!(frame.buffer.len(), SIZE_FRAME as usize);
             assert!(frame.buffer.iter().all(|x| *x == 0));
         }

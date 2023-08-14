@@ -4,8 +4,6 @@ pub struct Tracker {
     pub page_hits: usize,
     pub tlb_faults: usize,
     pub tlb_hits: usize,
-    pub frame_hits: usize,
-    pub frame_faults: usize,
     pub correct_memory_accesses: usize,
 }
 
@@ -16,8 +14,6 @@ impl Tracker {
             page_hits: 0,
             tlb_faults: 0,
             tlb_hits: 0,
-            frame_hits: 0,
-            frame_faults: 0,
             correct_memory_accesses: 0,
         }
     }
@@ -34,17 +30,20 @@ page_faults:             {:08}
 page_hits:               {:08}
 tlb_faults:              {:08}
 tlb_hits:                {:08}
-frame_hits:              {:08}
-frame_faults:            {:08}
 correct_memory_accesses: {:08}
+
+
+tlb hit ratio:           {:.06}
+page hit ratio:          {:.06}
                ",
             self.page_faults,
             self.page_hits,
             self.tlb_faults,
             self.tlb_hits,
-            self.frame_hits,
-            self.frame_faults,
             self.correct_memory_accesses,
+            // assumes all accesses were valid
+            self.tlb_hits as f32 / self.correct_memory_accesses as f32,
+            self.page_hits as f32 / self.correct_memory_accesses as f32,
         )
     }
 }
@@ -64,8 +63,6 @@ mod tests {
             assert_eq!(tracker.page_hits, 0);
             assert_eq!(tracker.tlb_faults, 0);
             assert_eq!(tracker.tlb_hits, 0);
-            assert_eq!(tracker.frame_hits, 0);
-            assert_eq!(tracker.frame_faults, 0);
             assert_eq!(tracker.correct_memory_accesses, 0);
         }
 

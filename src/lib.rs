@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports)]
 mod address;
 mod storage;
 mod tracker;
@@ -8,10 +9,13 @@ use address::AddressReader;
 use validator::ValidationReader;
 use virtual_memory::VirtualMemory;
 
-const FILENAME_BSTORE: &str = "BACKING_STORE.bin";
+const FILENAME_STORAGE: &str = "BACKING_STORE.bin";
 const FILENAME_VALIDATION: &str = "correct.txt";
 const FILENAME_ADDRESS: &str = "addresses.txt";
-const SIZE_TABLE: usize = 256;
+
+// todo: there is a known bug that surfaces when table size is 64 and less.
+// weirdly enough, only one entry will be marked wrong
+const SIZE_TABLE: usize = 128;
 const SIZE_TLB: usize = 16;
 const SIZE_FRAME: u64 = 256;
 const MASK_PAGE: u32 = 0x0000FF00;
@@ -25,18 +29,18 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn build(tlb_size: usize, num_pages: usize, num_frames: usize, frame_size: u64) -> Self {
+    pub fn build(tlb_size: usize, num_frames: usize, frame_size: u64) -> Self {
         Self {
             address_reader: AddressReader::new(),
             validation_reader: ValidationReader::new(),
-            virtual_memory: VirtualMemory::build(tlb_size, num_pages, num_frames, frame_size),
+            virtual_memory: VirtualMemory::build(tlb_size, num_frames, frame_size),
         }
     }
 }
 
 // function header for use later
 fn prepare_simulation() -> Simulation {
-    Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_TABLE, SIZE_FRAME)
+    Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_FRAME)
 }
 
 fn run_simulation(simulation: Simulation) {

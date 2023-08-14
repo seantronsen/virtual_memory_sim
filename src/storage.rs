@@ -1,5 +1,4 @@
-//todo: rename to storage
-use crate::FILENAME_BSTORE;
+use crate::FILENAME_STORAGE;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 
@@ -7,7 +6,7 @@ pub struct Storage(BufReader<File>);
 
 impl Storage {
     pub fn build() -> Self {
-        let file = File::open(FILENAME_BSTORE).unwrap();
+        let file = File::open(FILENAME_STORAGE).unwrap();
         Self(BufReader::new(file))
     }
 
