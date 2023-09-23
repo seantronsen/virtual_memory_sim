@@ -8,9 +8,12 @@ use std::ops::Index;
 // this can be enforced within the build method of the table structs where flags will be set
 // to choose the algorithm features such as a fifo queue or hashtable
 
-/// return errors configured for this module
+/// Type Alias: Simple rebranding of the `Result` enum from the standard library with a focus on the errors
+/// that may result from the use of this module (at least improperly).
 type Result<T> = std::result::Result<T, Error>;
 
+// The `Error` enum here is merely a formal declaration and generalization of the error kinds that
+// may occur from improper use of other structures later in the module.
 #[derive(Debug)]
 pub enum Error {
     IOError(std::io::Error),
@@ -22,29 +25,49 @@ impl From<std::io::Error> for Error {
     }
 }
 
+/// The `Fifo<T>` struct is an implementation of the simple queue data structure that uses the
+/// standard libraries linked list implementation as a backend. I've written a linked list in Rust
+/// before and it was more of a pain in the ass than I prefer to admit.
+/// See [here](https://rust-unofficial.github.io/too-many-lists/) for more details about the
+/// nuisances with creating node structures using the standard safe subset of the Rust language.
 struct Fifo<T>(LinkedList<T>, usize);
 
 impl<T> Fifo<T> {
+    /// Create a new instance of the `Fifo` struct with nodes of type `T`.
+    ///
     fn new() -> Self {
         Self(LinkedList::new(), 0)
     }
 
+    /// Returns the length of the queue.
+    ///
     fn len(&self) -> usize {
         self.1
     }
 
-    fn enqueue(&mut self, free_index: T) {
+    /// Add an element to the back of the queue.
+    ///
+    /// # Arguments
+    ///
+    /// * `element` - a value of type `T` to be added to the queue.
+    ///
+    fn enqueue(&mut self, element: T) {
         self.1 += 1;
-        self.0.push_front(free_index);
+        self.0.push_front(element);
     }
 
+    /// Remove and return the element at the head of the queue (hence dequeue).
+    ///
     fn dequeue(&mut self) -> Option<T> {
         self.1 -= 1;
         self.0.pop_back()
     }
 }
 
-/// represents the memory address, used for tracking
+/// The `AccessResult` struct stitches several values together for later use in tracking the
+/// accuracy of the virtual memory implementation. Elements include the virtual address provided to
+/// an operation, the corresponding physical address, and the value read in using the information. 
+///
 #[derive(Debug)]
 pub struct AccessResult {
     pub virtual_address: VirtualAddress,
@@ -57,6 +80,7 @@ impl PartialEq for AccessResult {
         self.virtual_address == other.virtual_address && self.value == other.value
     }
 }
+
 
 struct TLB {
     table_size: usize,
@@ -215,12 +239,12 @@ impl VirtualMemory {
                 _tracker.tlb_faults += 1;
                 match self.pages.find(page_number) {
                     Some(page) if page.valid => {
-                        _tracker.page_hits +=1;
+                        _tracker.page_hits += 1;
                         self.tlb.replace(page_number, page.frame_index);
                         page.frame_index
                     }
                     _ => {
-                        _tracker.page_faults +=1;
+                        _tracker.page_faults += 1;
                         let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
                         self.tlb.replace(page_number, fi);
                         fi

@@ -4,12 +4,22 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+// Similar to `address::AddressReader`, `ValidationReader` is used to read addresses into memory.
+// Where the former is used to read the raw address, the latter is used to validate whether an
+// implementation accessed and returned data from the correct segment of virtual memory. 
 pub struct ValidationReader {
     reader: BufReader<File>,
     pub line_number: u64,
 }
 
 impl ValidationReader {
+    /// Create a new `ValidationReader` instance for checking virtual memory implementation
+    /// results. 
+    ///
+    /// # Panics
+    ///
+    /// Panics if the provided filename in the configuration does not exist.
+    ///
     pub fn new() -> Self {
         match File::open(FILENAME_VALIDATION) {
             Err(e) => panic!("error: {:?}", e),

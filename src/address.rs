@@ -2,6 +2,9 @@ use crate::{FILENAME_ADDRESS, MASK_OFFSET, MASK_PAGE};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+/// `VirtualAddress` is a type that represents the components of a virtual memory address in a
+/// single structure and including elements such as the page number, offset, and various extra
+/// information.
 #[derive(PartialEq, Debug)]
 pub struct VirtualAddress {
     pub number_page: u8,
@@ -10,6 +13,23 @@ pub struct VirtualAddress {
 }
 
 impl From<u32> for VirtualAddress {
+    /// Provided an address in the form of a 32-bit unsigned integer, translate said address into a
+    /// struct with fields storing information relative to the address components.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - 32-bit unsigned integer representing a virtual address location
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use virtual_mem::address::VirtualAddress;
+    /// let x: u32 = 0x00000f0f;
+    /// let y = VirtualAddress::from(x);
+    /// println!("{:?}", y);
+    /// assert_eq!(y.number_page, 15);
+    /// assert_eq!(y.number_offset, 15);
+    /// ```
     fn from(value: u32) -> Self {
         Self {
             number_page: ((value & MASK_PAGE) >> 8) as u8,
@@ -19,12 +39,24 @@ impl From<u32> for VirtualAddress {
     }
 }
 
+/// `AddressReader` is a utility type responsible for sequentially obtaining raw address numbers
+/// from a text file. The obtained addresses can be used to access data from a virtual memory
+/// system.
 pub struct AddressReader {
     reader: BufReader<File>,
     pub line_number: u64,
 }
 
 impl AddressReader {
+    /// Instantiate a new `AddressReader` struct for working with the provided text file. Future
+    /// users should ensure the content of this file contains only address numbers (no header
+    /// information) and each line of the file contains only one address.
+    ///
+    /// # Panics
+    ///
+    /// Instantiating a new address reader will fail if the file at the provided path does not
+    /// exist.
+    ///
     pub fn new() -> Self {
         match File::open(FILENAME_ADDRESS) {
             Err(e) => panic!("error: {:?}", e),

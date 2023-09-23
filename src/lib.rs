@@ -1,9 +1,9 @@
 #![allow(dead_code, unused_imports)]
-mod address;
-mod storage;
-mod tracker;
-mod validator;
-mod virtual_memory;
+pub mod address;
+pub mod storage;
+pub mod tracker;
+pub mod validator;
+pub mod virtual_memory;
 
 use address::AddressReader;
 use validator::ValidationReader;

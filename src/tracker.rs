@@ -1,3 +1,8 @@
+use crate::virtual_memory;
+
+/// The `Tracker` struct is a simple collection of named performance data counters used for
+/// collecting data points on a virtual memory simulations. The data collected is used to conduct
+/// light statistical analysis about the performance of a particular algorithm.
 #[derive(Debug, PartialEq)]
 pub struct Tracker {
     pub page_faults: usize,
@@ -7,7 +12,10 @@ pub struct Tracker {
     pub correct_memory_accesses: usize,
 }
 
+
 impl Tracker {
+    /// Create a new instance of the `Tracker` struct with all counters initialized to zero.
+    ///
     pub fn new() -> Self {
         Self {
             page_faults: 0,
@@ -20,6 +28,14 @@ impl Tracker {
 }
 
 impl std::fmt::Display for Tracker {
+    /// Display format specification for the `Tracker` struct implemented to simplify the process
+    /// of outputting statistics to the terminal.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - A mutable reference to a standard library formatter instance. For most use cases,
+    /// this is provided automatically as this method is not meant to be called directly.
+    ///
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -69,6 +85,13 @@ mod tests {
         #[test]
         fn equals() {
             assert_eq!(Tracker::new(), Tracker::new());
+        }
+
+        #[test]
+        fn to_string() {
+            let tracker = Tracker::new();
+            let str = tracker.to_string();
+            assert!(!str.is_empty())
         }
     }
 }
