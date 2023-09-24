@@ -328,7 +328,6 @@ pub struct VirtualMemory {
 }
 
 impl VirtualMemory {
-
     /// Provided the nessecary arguments, create a new `VirtualMemory` instance.
     ///
     /// # Arguments
@@ -347,7 +346,7 @@ impl VirtualMemory {
     }
 
     // TODO: it is possible that the forgotten issue was with the implementation of the access
-    // method and the TLB fifo implementation. testing will help detect the root of the error. 
+    // method and the TLB fifo implementation. testing will help detect the root of the error.
 
     /// Using the simulated virtual memory system, access the data stored at the provided logical
     /// address and return the value to the caller. Along the way a series of hit/miss stats are
@@ -357,7 +356,7 @@ impl VirtualMemory {
     /// randomly generated then there is little hope in having meaningful performance at any cache
     /// level. On the other hand, if the access requests are more sequential in nature such as a
     /// sequential read of bytes or programmatic instructions, then the performance gains will be
-    /// more noticable. 
+    /// more noticable.
     ///
     /// # Arguments
     ///
@@ -367,7 +366,7 @@ impl VirtualMemory {
     /// # Errors
     ///
     /// Errors will occur if an invalid frame retrieval request is generated (e.g. accessing a
-    /// frame number greater than the possible number of entries in the table). 
+    /// frame number greater than the possible number of entries in the table).
     ///
     pub fn access(
         &mut self,
@@ -408,11 +407,11 @@ impl VirtualMemory {
 
     /// Provided a logical page number, allocate a free frame and read the data referenced by the
     /// page into the frame buffer to maintain the illusion of unmanaged memory access from the
-    /// perspective of the process. 
+    /// perspective of the process.
     ///
     /// # Arguments
     ///
-    /// * `page_number` - an unsigned integer representing the number of the requested page. 
+    /// * `page_number` - an unsigned integer representing the number of the requested page.
     ///
     /// # Errors
     ///
