@@ -15,7 +15,7 @@ const FILENAME_ADDRESS: &str = "addresses.txt";
 
 // todo: there is a known bug that surfaces when table size is 64 and less.
 // weirdly enough, only one entry will be marked wrong
-const SIZE_TABLE: usize = 128;
+const SIZE_TABLE: usize = 64;
 const SIZE_TLB: usize = 16;
 const SIZE_FRAME: u64 = 256;
 const MASK_PAGE: u32 = 0x0000FF00;

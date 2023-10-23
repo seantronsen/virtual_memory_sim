@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "rt_lldb",
+      "request": "launch",
+      "name": "run default launcher without args",
+      "program": "${workspaceFolder}/target/debug/${workspaceFolderBasename}",
+      "stopOnEntry": false
+    }
+  ]
+}
