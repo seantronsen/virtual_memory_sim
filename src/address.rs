@@ -10,6 +10,9 @@ pub struct VirtualAddress {
     pub number_page: u8,
     pub number_offset: u8,
     extra_bits: u16,
+
+    // remove 
+    original: u32
 }
 
 impl From<u32> for VirtualAddress {
@@ -35,6 +38,7 @@ impl From<u32> for VirtualAddress {
             number_page: ((value & MASK_PAGE) >> 8) as u8,
             number_offset: (value & MASK_OFFSET) as u8,
             extra_bits: (((!(MASK_OFFSET | MASK_PAGE)) & value) >> 16) as u16,
+            original: value,
         }
     }
 }

@@ -545,3 +545,5 @@ mod tests {
 
 // TODO: ensure tests are in place that ensure the functionality of the TLB replacement and frame
 // replacement algorithms.
+//
+// TODO: need to write test that ensures the alignment of the TLB with the page table.
