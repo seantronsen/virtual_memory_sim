@@ -145,6 +145,7 @@ impl TLB {
 /// The `Page` struct represents the simplest element of the simulated page table. It serves as
 /// little more than a wrapper that specifies which physical frame the page is associated with and
 /// whether that frame is still valid (meaning whether it has been victimized or paged out).
+#[derive(Debug, PartialEq)]
 struct Page {
     frame_index: usize,
     valid: bool,
@@ -462,7 +463,90 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod page_table_tests {}
+    mod page_table_tests {
+        use super::*;
+
+        fn make_standard_table() -> PageTable {
+            let mut table = PageTable::build();
+
+            (0..10).for_each(|x| {
+                table.insert(
+                    x,
+                    Page {
+                        frame_index: x,
+                        valid: true,
+                    },
+                )
+            });
+            table
+        }
+
+        // module level tests
+
+        /// Ensure the page table is built to expectations.
+        #[test]
+        fn build() {
+            // arrange
+            let table = PageTable::build();
+
+            // assert
+            assert!(table.0.len() == 0)
+        }
+
+        #[test]
+        fn find() {
+            // arrange
+            let table = make_standard_table();
+            let range_max = 10;
+
+            (0..range_max).for_each(|x| {
+                let page: &Page = table.find(x).unwrap();
+                // assert
+                assert_eq!(x, page.frame_index);
+            });
+
+            assert_eq!(table.find(range_max + 1), None);
+        }
+
+        #[test]
+        fn find_mut() {
+            // arrange
+            let mut table = make_standard_table();
+            let range_max = 10;
+
+            (0..range_max).for_each(|mut x| {
+                let page: &mut Page = table.find_mut(x).unwrap();
+                // assert
+                assert_eq!(&mut x, &mut page.frame_index);
+            });
+
+            assert_eq!(table.find(range_max + 1), None);
+        }
+
+        #[test]
+        fn insert() {
+            // arrange
+            let mut table = make_standard_table();
+            let page_id = 5;
+            let frame_index = 55;
+            let new_page = Page {
+                frame_index,
+                valid: true,
+            };
+
+            // act
+            table.insert(page_id, new_page);
+
+            // assert
+            assert_eq!(
+                table.find(page_id),
+                Some(&Page {
+                    frame_index,
+                    valid: true
+                })
+            );
+        }
+    }
 
     #[cfg(test)]
     mod frame_tests {

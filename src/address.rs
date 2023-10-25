@@ -138,6 +138,7 @@ mod tests {
             address.extra_bits = 0xabcd;
             address.number_page = 0x12;
             address.number_offset = 0x34;
+            address.original = 0xabcd1234;
             assert_eq!(address, VirtualAddress::from(0xabcd1234))
         }
     }
