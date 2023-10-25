@@ -2,7 +2,7 @@ use crate::address::VirtualAddress;
 use crate::storage::Storage;
 use crate::tracker::Tracker;
 use std::collections::{HashMap, LinkedList};
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 // read from the configuration file to determine which algorithm to use
 // this can be enforced within the build method of the table structs where flags will be set
@@ -239,6 +239,12 @@ impl Index<usize> for Frame {
     }
 }
 
+impl IndexMut<usize> for Frame {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.buffer[index]
+    }
+}
+
 /// The `FrameTable` struct is used to simulate the behavior of physical memory frames relative to
 /// the operating system. Although a `PageTable` may possess a seemingly infinite number of pages,
 /// a `FrameTable` is limited to a finite amount to mimic the characteristics of real physical
@@ -282,6 +288,14 @@ impl FrameTable {
             victimizer,
             available,
         }
+    }
+
+    fn victimizer_vector(&self) -> Vec<&usize> {
+        self.victimizer.0.iter().collect()
+    }
+
+    fn available_vector(&self) -> Vec<&usize> {
+        self.available.0.iter().collect()
     }
 
     /// Instruct the frame table to allocate a free frame regardless of whether one is available.
@@ -587,14 +601,48 @@ mod tests {
     mod frame_table_tests {
 
         use super::*;
+        const TEST_TABLE_SIZE: usize = 4;
+        const TEST_FRAME_SIZE: u64 = 64;
+
+        fn make_standard_table() -> FrameTable {
+            let mut table = FrameTable::build(TEST_TABLE_SIZE, TEST_FRAME_SIZE);
+
+            (0..TEST_TABLE_SIZE).for_each(|x| {
+                let frame_number = table.allocate();
+                let frame = &mut table.entries[frame_number];
+                frame.page_id = x;
+                frame[0] = x as u8;
+            });
+            table
+        }
 
         #[test]
         fn new() {
-            let ft = FrameTable::build(SIZE_TABLE, SIZE_FRAME);
-            assert_eq!(ft.available.0.len(), SIZE_TABLE);
-            assert_eq!(ft.entries.len(), SIZE_TABLE);
-            assert_eq!(ft.table_size, SIZE_TABLE);
-            assert_eq!(ft.frame_size, SIZE_FRAME);
+            let ft = make_standard_table();
+            assert_eq!(ft.available.0.len(), 0);
+            assert_eq!(ft.entries.len(), TEST_TABLE_SIZE);
+            assert_eq!(ft.table_size, TEST_TABLE_SIZE);
+            assert_eq!(ft.frame_size, TEST_FRAME_SIZE);
+        }
+
+        #[test]
+        fn allocate() {
+            // arrange
+
+            // act
+
+            // assert
+            todo!();
+        }
+
+        #[test]
+        fn reaper() {
+            // arrange
+
+            // act
+
+            // assert
+            todo!();
         }
     }
 
