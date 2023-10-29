@@ -5,6 +5,7 @@
       "type": "rt_lldb",
       "request": "launch",
       "name": "run default launcher without args",
+      "args": [],
       "program": "${workspaceFolder}/target/debug/${workspaceFolderBasename}",
       "stopOnEntry": false
     }

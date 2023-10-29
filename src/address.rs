@@ -11,8 +11,8 @@ pub struct VirtualAddress {
     pub number_offset: u8,
     extra_bits: u16,
 
-    // remove 
-    original: u32
+    // remove
+    original: u32,
 }
 
 impl From<u32> for VirtualAddress {
