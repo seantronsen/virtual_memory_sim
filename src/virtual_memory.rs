@@ -32,13 +32,13 @@ impl From<std::io::Error> for Error {
 /// before and it was more of a pain in the ass than I prefer to admit.
 /// See [here](https://rust-unofficial.github.io/too-many-lists/) for more details about the
 /// nuisances with creating node structures using the standard safe subset of the Rust language.
-struct Fifo<T: Debug>(LinkedList<T>, usize, String);
+struct Fifo<T: Debug>(LinkedList<T>, usize);
 
 impl<T: Debug> Fifo<T> {
     /// Create a new instance of the `Fifo` struct with nodes of type `T`.
     ///
-    fn new(name: String) -> Self {
-        Self(LinkedList::new(), 0, name)
+    fn new() -> Self {
+        Self(LinkedList::new(), 0)
     }
 
     /// Returns the length of the queue.
@@ -300,8 +300,8 @@ impl FrameTable {
     ///
     fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
-        let mut available = Fifo::new("FRAME_TABLE_AVAIL".to_string());
-        let victimizer = Fifo::new("FRAME_TABLE_VICTIM".to_string());
+        let mut available = Fifo::new();
+        let victimizer = Fifo::new();
         (0..table_size).for_each(|index| {
             entries.push(Frame::new(frame_size));
             available.enqueue(index);
@@ -607,21 +607,21 @@ mod tests {
 
         use super::*;
 
-        // #[test]
-        // fn new() {
-        //     let ffq = Fifo::<usize>::new();
-        //     assert_eq!(ffq.0.len(), 0);
-        // }
+        #[test]
+        fn new() {
+            let ffq = Fifo::<usize>::new();
+            assert_eq!(ffq.0.len(), 0);
+        }
 
-        // #[test]
-        // fn enqueue_dequeue() {
-        //     let mut ffq = Fifo::new();
-        //     let values = 0..10;
-        //     values.clone().for_each(|x| ffq.enqueue(x));
-        //     values
-        //         .clone()
-        //         .for_each(|x| assert_eq!(ffq.dequeue(), Some(x)));
-        // }
+        #[test]
+        fn enqueue_dequeue() {
+            let mut ffq = Fifo::new();
+            let values = 0..10;
+            values.clone().for_each(|x| ffq.enqueue(x));
+            values
+                .clone()
+                .for_each(|x| assert_eq!(ffq.dequeue(), Some(x)));
+        }
     }
 
     #[cfg(test)]
@@ -689,14 +689,16 @@ mod tests {
         #[test]
         fn find_and_replace() {
             let mut tlb = TLB::build(SIZE_TEST);
+            let min = 0;
+            let max = 5;
 
-            (0..5).for_each(|x| {
+            (min..max).for_each(|x| {
                 assert!(tlb.find(x).is_none());
                 tlb.cache_element(x, x);
                 assert!(tlb.find(x).is_some());
             });
 
-            assert!(tlb.find(0).is_none());
+            assert!(tlb.find(max).is_none());
         }
     }
 }
