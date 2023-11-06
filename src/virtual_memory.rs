@@ -89,6 +89,13 @@ impl PartialEq for AccessResult {
     }
 }
 
+
+// idea to fix this is to completely shed away the victimizer list and the original map in 
+// favor of the linked hash map struct. has all the features of a regular hash map while keeping 
+// elements in insertion order. it will also make the creation of LRU much simpler since the struct
+// possesses all the features that we already need.
+
+
 /// The `TLB` struct is intended to be a simple virtualization of the translation look aside buffer
 /// commonly found on most CPUs today. A hashmap is used to search the buffer in O(1) time and a
 /// FIFO queue is maintained to select victims from the buffer for replacement.
@@ -440,35 +447,6 @@ impl VirtualMemory {
         Ok(AccessResult {
             virtual_address,
             physical_address: ((frame_index * self.frames.frame_size as usize) + offset) as u32,
-            value: self.frames.entries[frame_index][offset] as i8,
-        })
-    }
-
-    pub fn access1(
-        &mut self,
-        virtual_address: VirtualAddress,
-        _tracker: &mut Tracker,
-    ) -> Result<AccessResult> {
-        let page_number = virtual_address.number_page as usize;
-        let offset = virtual_address.number_offset as usize;
-        let frame_index = match self.tlb.find(page_number) {
-            Some(x) => *x,
-            _ => match self.pages.find(page_number) {
-                Some(page) if page.valid => {
-                    self.tlb.cache_element(page_number, page.frame_index);
-                    page.frame_index
-                }
-                _ => {
-                    let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
-                    self.tlb.cache_element(page_number, fi);
-                    fi
-                }
-            },
-        };
-
-        Ok(AccessResult {
-            virtual_address,
-            physical_address: frame_index as u32 * self.frames.frame_size as u32 + offset as u32,
             value: self.frames.entries[frame_index][offset] as i8,
         })
     }
