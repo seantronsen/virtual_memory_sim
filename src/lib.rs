@@ -50,30 +50,12 @@ fn run_simulation(simulation: Simulation) {
         mut virtual_memory,
     } = simulation;
 
-    let mut tracker = tracker::Tracker::new();
-
     for (i, (virtual_address, validation_entry)) in
         address_reader.zip(validation_reader).enumerate()
     {
-
-        if virtual_address.number_page == 251 {
-            println!("{}", virtual_address.number_page);
-        }
-
-
-        if virtual_address.number_page == 146 {
-            println!("{}", virtual_address.number_page);
-        }
-
-        if i == 105 {
-            println!("stopping here");
-        }
-
-        let access_result = virtual_memory
-            .access(virtual_address, &mut tracker)
-            .unwrap();
+        let access_result = virtual_memory.access(virtual_address).unwrap();
         match access_result == validation_entry {
-            true => tracker.correct_memory_accesses += 1,
+            true => virtual_memory.tracker.correct_memory_accesses += 1,
             false => {
                 println!("failure on record: {}", i);
                 println!("--------------------------------");
@@ -82,7 +64,7 @@ fn run_simulation(simulation: Simulation) {
             }
         }
     }
-    println!("{}", tracker);
+    println!("{}", virtual_memory.tracker);
 }
 
 pub fn runner() {

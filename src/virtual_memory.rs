@@ -62,10 +62,7 @@ impl<T: Debug> Fifo<T> {
     ///
     fn dequeue(&mut self) -> Option<T> {
         self.1 -= 1;
-        let res = self.0.pop_back();
-        println!("next dequeue for '{}': {:?}", &self.2, self.0.back());
-
-        res
+        self.0.pop_back()
     }
 
     fn as_vec(&self) -> Vec<&T> {
@@ -150,8 +147,8 @@ impl TLB {
         self.map.insert(key, value);
     }
 
-    fn flush_element(&mut self, key: usize) {
-        self.map.remove(&key);
+    fn flush_element(&mut self, key: usize) -> bool {
+        self.map.remove(&key).is_some()
     }
 }
 
@@ -369,6 +366,7 @@ pub struct VirtualMemory {
     pages: PageTable,
     frames: FrameTable,
     storage: Storage,
+    pub tracker: Tracker,
 }
 
 impl VirtualMemory {
@@ -386,6 +384,7 @@ impl VirtualMemory {
             pages: PageTable::build(),
             frames: FrameTable::build(frame_table_size, frame_size),
             storage: Storage::build(),
+            tracker: Tracker::new(),
         }
     }
 
@@ -405,35 +404,30 @@ impl VirtualMemory {
     /// # Arguments
     ///
     /// * `virtual_address` - the process facing logical address used for indirect data access
-    /// * `_tracker` - a `Tracker` instance used to track performance statistics
     ///
     /// # Errors
     ///
     /// Errors will occur if an invalid frame retrieval request is generated (e.g. accessing a
     /// frame number greater than the possible number of entries in the table).
     ///
-    pub fn access(
-        &mut self,
-        virtual_address: VirtualAddress,
-        _tracker: &mut Tracker,
-    ) -> Result<AccessResult> {
+    pub fn access(&mut self, virtual_address: VirtualAddress) -> Result<AccessResult> {
         let page_number = virtual_address.number_page as usize;
         let offset = virtual_address.number_offset as usize;
         let frame_index = match self.tlb.find(page_number) {
             Some(x) => {
-                _tracker.tlb_hits += 1;
+                self.tracker.tlb_hits += 1;
                 *x
             }
             _ => {
-                _tracker.tlb_faults += 1;
+                self.tracker.tlb_faults += 1;
                 match self.pages.find(page_number) {
                     Some(page) if page.valid => {
-                        _tracker.page_hits += 1;
+                        self.tracker.page_hits += 1;
                         self.tlb.cache_element(page_number, page.frame_index);
                         page.frame_index
                     }
                     _ => {
-                        _tracker.page_faults += 1;
+                        self.tracker.page_faults += 1;
                         let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
                         self.tlb.cache_element(page_number, fi);
                         fi
@@ -468,7 +462,10 @@ impl VirtualMemory {
         let frame = &mut self.frames.entries[frame_index];
         if let Some(page) = self.pages.find_mut(frame.page_id) {
             page.valid = false;
-            self.tlb.flush_element(frame.page_id);
+
+            if self.tlb.flush_element(frame.page_id) {
+                self.tracker.tlb_flushes += 1;
+            }
         }
         frame.page_id = page_number;
         self.storage.read(page_number as u64, &mut frame.buffer)?;
