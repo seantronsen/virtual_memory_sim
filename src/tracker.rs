@@ -5,25 +5,22 @@ use crate::virtual_memory;
 /// light statistical analysis about the performance of a particular algorithm.
 #[derive(Debug, PartialEq)]
 pub struct Tracker {
-    pub page_faults: usize,
     pub page_hits: usize,
-    pub tlb_faults: usize,
     pub tlb_hits: usize,
     pub tlb_flushes: usize,
+    pub attempted_memory_accesses: usize,
     pub correct_memory_accesses: usize,
 }
-
 
 impl Tracker {
     /// Create a new instance of the `Tracker` struct with all counters initialized to zero.
     ///
     pub fn new() -> Self {
         Self {
-            page_faults: 0,
             page_hits: 0,
-            tlb_faults: 0,
             tlb_hits: 0,
             tlb_flushes: 0,
+            attempted_memory_accesses: 0,
             correct_memory_accesses: 0,
         }
     }
@@ -44,26 +41,24 @@ impl std::fmt::Display for Tracker {
             "
 Stats Tracked
 ---------------------------------
-page_faults:             {:08}
-page_hits:               {:08}
-tlb_faults:              {:08}
-tlb_hits:                {:08}
-tlb_flushes:             {:08}
-correct_memory_accesses: {:08}
+page_hits:                {:08}
+tlb_hits:                 {:08}
+tlb_flushes:              {:08}
+attempted_memory_acceses: {:08}
+correct_memory_accesses:  {:08}
 
 
-tlb hit ratio:           {:.06}
-page hit ratio:          {:.06}
+tlb hit ratio:            {:.06}
+page hit ratio:           {:.06}
                ",
-            self.page_faults,
             self.page_hits,
-            self.tlb_faults,
             self.tlb_hits,
             self.tlb_flushes,
+            self.attempted_memory_accesses,
             self.correct_memory_accesses,
             // assumes all accesses were valid
-            self.tlb_hits as f32 / self.correct_memory_accesses as f32,
-            self.page_hits as f32 / self.correct_memory_accesses as f32,
+            self.tlb_hits as f32 / self.attempted_memory_accesses as f32,
+            self.page_hits as f32 / self.attempted_memory_accesses as f32,
         )
     }
 }
@@ -79,9 +74,7 @@ mod tests {
         #[test]
         fn new() {
             let tracker = Tracker::new();
-            assert_eq!(tracker.page_faults, 0);
             assert_eq!(tracker.page_hits, 0);
-            assert_eq!(tracker.tlb_faults, 0);
             assert_eq!(tracker.tlb_hits, 0);
             assert_eq!(tracker.tlb_flushes, 0);
             assert_eq!(tracker.correct_memory_accesses, 0);

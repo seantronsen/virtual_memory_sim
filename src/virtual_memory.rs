@@ -249,10 +249,10 @@ impl Frame {
     ///
     /// * `frame_size` - an unsigned integer representing the sized of the frame in bytes (`u8`).
     ///
-    fn new(frame_size: u64, init_id: usize) -> Self {
+    fn new(frame_size: u64) -> Self {
         Self {
             buffer: vec![0 as u8; frame_size as usize],
-            page_id: init_id,
+            page_id: usize::MAX,
         }
     }
 }
@@ -303,7 +303,7 @@ impl FrameTable {
         let mut available = Fifo::new("FRAME_TABLE_AVAIL".to_string());
         let victimizer = Fifo::new("FRAME_TABLE_VICTIM".to_string());
         (0..table_size).for_each(|index| {
-            entries.push(Frame::new(frame_size, index));
+            entries.push(Frame::new(frame_size));
             available.enqueue(index);
         });
 
@@ -411,6 +411,7 @@ impl VirtualMemory {
     /// frame number greater than the possible number of entries in the table).
     ///
     pub fn access(&mut self, virtual_address: VirtualAddress) -> Result<AccessResult> {
+        self.tracker.attempted_memory_accesses += 1;
         let page_number = virtual_address.number_page as usize;
         let offset = virtual_address.number_offset as usize;
         let frame_index = match self.tlb.find(page_number) {
@@ -418,22 +419,18 @@ impl VirtualMemory {
                 self.tracker.tlb_hits += 1;
                 *x
             }
-            _ => {
-                self.tracker.tlb_faults += 1;
-                match self.pages.find(page_number) {
-                    Some(page) if page.valid => {
-                        self.tracker.page_hits += 1;
-                        self.tlb.cache_element(page_number, page.frame_index);
-                        page.frame_index
-                    }
-                    _ => {
-                        self.tracker.page_faults += 1;
-                        let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
-                        self.tlb.cache_element(page_number, fi);
-                        fi
-                    }
+            _ => match self.pages.find(page_number) {
+                Some(page) if page.valid => {
+                    self.tracker.page_hits += 1;
+                    self.tlb.cache_element(page_number, page.frame_index);
+                    page.frame_index
                 }
-            }
+                _ => {
+                    let fi = self.retrieve_frame(virtual_address.number_page as usize)?;
+                    self.tlb.cache_element(page_number, fi);
+                    fi
+                }
+            },
         };
 
         Ok(AccessResult {
@@ -462,7 +459,6 @@ impl VirtualMemory {
         let frame = &mut self.frames.entries[frame_index];
         if let Some(page) = self.pages.find_mut(frame.page_id) {
             page.valid = false;
-
             if self.tlb.flush_element(frame.page_id) {
                 self.tracker.tlb_flushes += 1;
             }
@@ -480,14 +476,6 @@ impl VirtualMemory {
         Ok(frame_index)
     }
 }
-
-// a page table is little more than a hash map for memory addresses in an agnostic way. The
-// simplest approach is to have no form of cache and infinite physical memory. when this is the
-// case the page table forms a one to one mapping with the frame table.
-//
-// when there is limited memory and no TLB caching, there must be some sort of invalidation
-// ordering for the page table. this is the heuristic. it could be first in first out, stack order
-// (why?) or least recently used (best).
 
 #[cfg(test)]
 mod tests {
@@ -608,7 +596,7 @@ mod tests {
 
         #[test]
         fn new() {
-            let frame = Frame::new(SIZE_FRAME, 0);
+            let frame = Frame::new(SIZE_FRAME);
             assert_eq!(frame.buffer.len(), SIZE_FRAME as usize);
             assert!(frame.buffer.iter().all(|x| *x == 0));
         }
