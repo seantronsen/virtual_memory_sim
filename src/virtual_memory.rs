@@ -1,6 +1,7 @@
 use crate::address::VirtualAddress;
 use crate::storage::Storage;
 use crate::tracker::Tracker;
+use linked_hash_map::LinkedHashMap;
 use std::collections::{HashMap, LinkedList};
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
@@ -89,20 +90,17 @@ impl PartialEq for AccessResult {
     }
 }
 
-
-// idea to fix this is to completely shed away the victimizer list and the original map in 
-// favor of the linked hash map struct. has all the features of a regular hash map while keeping 
+// idea to fix this is to completely shed away the victimizer list and the original map in
+// favor of the linked hash map struct. has all the features of a regular hash map while keeping
 // elements in insertion order. it will also make the creation of LRU much simpler since the struct
 // possesses all the features that we already need.
-
 
 /// The `TLB` struct is intended to be a simple virtualization of the translation look aside buffer
 /// commonly found on most CPUs today. A hashmap is used to search the buffer in O(1) time and a
 /// FIFO queue is maintained to select victims from the buffer for replacement.
 struct TLB {
     table_size: usize,
-    map: HashMap<usize, usize>,
-    victimizer: Fifo<usize>,
+    map: LinkedHashMap<usize, usize>,
 }
 
 impl TLB {
@@ -114,11 +112,9 @@ impl TLB {
     /// TLB is allowed to cache.
     ///
     fn build(table_size: usize) -> Self {
-        let fifo = Fifo::new(String::from("TLB"));
         Self {
             table_size,
-            map: HashMap::new(),
-            victimizer: fifo,
+            map: LinkedHashMap::with_capacity(table_size),
         }
     }
 
@@ -149,11 +145,13 @@ impl TLB {
     ///
     fn cache_element(&mut self, key: usize, value: usize) {
         if self.map.len() == self.table_size {
-            let victim = self.victimizer.dequeue().unwrap();
-            self.map.remove(&victim).unwrap();
+            self.map.pop_back();
         }
         self.map.insert(key, value);
-        self.victimizer.enqueue(key);
+    }
+
+    fn flush_element(&mut self, key: usize) {
+        self.map.remove(&key);
     }
 }
 
@@ -254,10 +252,10 @@ impl Frame {
     ///
     /// * `frame_size` - an unsigned integer representing the sized of the frame in bytes (`u8`).
     ///
-    fn new(frame_size: u64) -> Self {
+    fn new(frame_size: u64, init_id: usize) -> Self {
         Self {
             buffer: vec![0 as u8; frame_size as usize],
-            page_id: 0,
+            page_id: init_id,
         }
     }
 }
@@ -308,7 +306,7 @@ impl FrameTable {
         let mut available = Fifo::new("FRAME_TABLE_AVAIL".to_string());
         let victimizer = Fifo::new("FRAME_TABLE_VICTIM".to_string());
         (0..table_size).for_each(|index| {
-            entries.push(Frame::new(frame_size));
+            entries.push(Frame::new(frame_size, index));
             available.enqueue(index);
         });
 
@@ -470,6 +468,7 @@ impl VirtualMemory {
         let frame = &mut self.frames.entries[frame_index];
         if let Some(page) = self.pages.find_mut(frame.page_id) {
             page.valid = false;
+            self.tlb.flush_element(frame.page_id);
         }
         frame.page_id = page_number;
         self.storage.read(page_number as u64, &mut frame.buffer)?;
@@ -484,6 +483,14 @@ impl VirtualMemory {
         Ok(frame_index)
     }
 }
+
+// a page table is little more than a hash map for memory addresses in an agnostic way. The
+// simplest approach is to have no form of cache and infinite physical memory. when this is the
+// case the page table forms a one to one mapping with the frame table.
+//
+// when there is limited memory and no TLB caching, there must be some sort of invalidation
+// ordering for the page table. this is the heuristic. it could be first in first out, stack order
+// (why?) or least recently used (best).
 
 #[cfg(test)]
 mod tests {
@@ -604,7 +611,7 @@ mod tests {
 
         #[test]
         fn new() {
-            let frame = Frame::new(SIZE_FRAME);
+            let frame = Frame::new(SIZE_FRAME, 0);
             assert_eq!(frame.buffer.len(), SIZE_FRAME as usize);
             assert!(frame.buffer.iter().all(|x| *x == 0));
         }
@@ -690,7 +697,6 @@ mod tests {
         #[test]
         fn build() {
             let tlb = TLB::build(SIZE_TEST);
-            assert_eq!(tlb.victimizer.0.len(), 0);
             assert_eq!(tlb.map.len(), 0);
             assert_eq!(tlb.table_size, SIZE_TEST);
         }
