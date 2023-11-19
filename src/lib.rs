@@ -1,10 +1,10 @@
 #![allow(dead_code, unused_imports)]
 pub mod address;
+pub mod config;
 pub mod storage;
 pub mod tracker;
 pub mod validator;
 pub mod virtual_memory;
-//pub mod configuration;
 
 use address::AddressReader;
 use validator::ValidationReader;
@@ -39,18 +39,12 @@ impl Simulation {
     }
 }
 
-// function header for use later
-fn prepare_simulation() -> Simulation {
-    // TODO: call configuration codes here.
-    Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_FRAME)
-}
-
-fn run_simulation(simulation: Simulation) {
+fn run_simulation() {
     let Simulation {
         address_reader,
         validation_reader,
         mut virtual_memory,
-    } = simulation;
+    } = Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_FRAME);
 
     for (i, (virtual_address, validation_entry)) in
         address_reader.zip(validation_reader).enumerate()
@@ -70,5 +64,5 @@ fn run_simulation(simulation: Simulation) {
 }
 
 pub fn runner() {
-    run_simulation(prepare_simulation())
+    run_simulation()
 }
