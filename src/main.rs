@@ -1,12 +1,17 @@
-use virtual_mem;
+use virtual_memory_sim::runner;
+
+fn welcome() {
+    println!("virtual memory simulation");
+}
 
 fn main() {
-    println!("virtual memory simulation");
+    welcome();
 
-    // process configuration
-    println!("processing configuration");
-
+    // TODO: parse env vars for potential configuration
+    // then output the config values (e.g. table sizes) 
+    // used to run the simulation. 
+    
     // execute runner
     println!("running simulation");
-    virtual_mem::runner();
+    runner();
 }

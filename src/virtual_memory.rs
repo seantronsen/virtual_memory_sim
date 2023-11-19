@@ -6,10 +6,6 @@ use std::collections::{HashMap, LinkedList};
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 
-// read from the configuration file to determine which algorithm to use
-// this can be enforced within the build method of the table structs where flags will be set
-// to choose the algorithm features such as a fifo queue or hashtable
-
 /// Type Alias: Simple rebranding of the `Result` enum from the standard library with a focus on the errors
 /// that may result from the use of this module (at least improperly).
 type Result<T> = std::result::Result<T, Error>;
@@ -24,49 +20,6 @@ pub enum Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Error::IOError(value)
-    }
-}
-
-/// The `Fifo<T>` struct is an implementation of the simple queue data structure that uses the
-/// standard libraries linked list implementation as a backend. I've written a linked list in Rust
-/// before and it was more of a pain in the ass than I prefer to admit.
-/// See [here](https://rust-unofficial.github.io/too-many-lists/) for more details about the
-/// nuisances with creating node structures using the standard safe subset of the Rust language.
-struct Fifo<T: Debug>(LinkedList<T>, usize);
-
-impl<T: Debug> Fifo<T> {
-    /// Create a new instance of the `Fifo` struct with nodes of type `T`.
-    ///
-    fn new() -> Self {
-        Self(LinkedList::new(), 0)
-    }
-
-    /// Returns the length of the queue.
-    ///
-    fn len(&self) -> usize {
-        self.1
-    }
-
-    /// Add an element to the back of the queue.
-    ///
-    /// # Arguments
-    ///
-    /// * `element` - a value of type `T` to be added to the queue.
-    ///
-    fn enqueue(&mut self, element: T) {
-        self.1 += 1;
-        self.0.push_front(element);
-    }
-
-    /// Remove and return the element at the head of the queue (hence dequeue).
-    ///
-    fn dequeue(&mut self) -> Option<T> {
-        self.1 -= 1;
-        self.0.pop_back()
-    }
-
-    fn as_vec(&self) -> Vec<&T> {
-        self.0.iter().collect()
     }
 }
 
@@ -93,8 +46,7 @@ impl PartialEq for AccessResult {
 // possesses all the features that we already need.
 
 /// The `TLB` struct is intended to be a simple virtualization of the translation look aside buffer
-/// commonly found on most CPUs today. A hashmap is used to search the buffer in O(1) time and a
-/// FIFO queue is maintained to select victims from the buffer for replacement.
+/// commonly found on most CPUs today.
 struct TLB {
     table_size: usize,
     map: LinkedHashMap<usize, usize>,
@@ -238,7 +190,7 @@ impl ToString for PageTable {
 /// table when a frame is victimized (paged-out).
 struct Frame {
     buffer: Vec<u8>,
-    page_id: usize,
+    associated_page_id: usize,
 }
 
 impl Frame {
@@ -252,7 +204,7 @@ impl Frame {
     fn new(frame_size: u64) -> Self {
         Self {
             buffer: vec![0 as u8; frame_size as usize],
-            page_id: usize::MAX,
+            associated_page_id: usize::MAX,
         }
     }
 }
@@ -285,8 +237,7 @@ struct FrameTable {
     table_size: usize,
     frame_size: u64,
     entries: Vec<Frame>,
-    available: Fifo<usize>,
-    victimizer: Fifo<usize>,
+    victimizer: LinkedHashMap<usize, usize>,
 }
 
 impl FrameTable {
@@ -300,11 +251,10 @@ impl FrameTable {
     ///
     fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
-        let mut available = Fifo::new();
-        let victimizer = Fifo::new();
+        let mut victimizer = LinkedHashMap::new();
         (0..table_size).for_each(|index| {
             entries.push(Frame::new(frame_size));
-            available.enqueue(index);
+            victimizer.insert(index, index);
         });
 
         Self {
@@ -312,16 +262,11 @@ impl FrameTable {
             table_size,
             entries,
             victimizer,
-            available,
         }
     }
 
     fn victimizer_vector(&self) -> Vec<&usize> {
-        self.victimizer.0.iter().collect()
-    }
-
-    fn available_vector(&self) -> Vec<&usize> {
-        self.available.0.iter().collect()
+        self.victimizer.iter().map(|(x, _)| x).collect()
     }
 
     /// Instruct the frame table to allocate a free frame regardless of whether one is available.
@@ -333,26 +278,18 @@ impl FrameTable {
     /// memory implementation.
     ///
     fn allocate(&mut self) -> usize {
-        if self.victimizer.len() == self.table_size {
-            self.reaper();
-        }
-        let alloc_index = self
-            .available
-            .dequeue()
-            .expect("should have an available frame");
-        self.victimizer.enqueue(alloc_index);
-        alloc_index
+        let value = self
+            .victimizer
+            .pop_front()
+            .expect("should have victims at the ready")
+            .0;
+        self.victimizer.insert(value, value);
+        value
     }
 
-    /// Execute a reaper routine that selects a frame to replace using the victimization algorithm.
-    /// While a farcry from actual reaper processes, the name suits the purpose nonetheless.
-    ///
-    pub fn reaper(&mut self) {
-        let target = self
-            .victimizer
-            .dequeue()
-            .expect("should have victims at the ready");
-        self.available.enqueue(target);
+    fn reference(&mut self, index: usize) {
+        self.victimizer.remove(&index).unwrap();
+        self.victimizer.insert(index, index);
     }
 }
 
@@ -387,9 +324,6 @@ impl VirtualMemory {
             tracker: Tracker::new(),
         }
     }
-
-    // TODO: it is possible that the forgotten issue was with the implementation of the access
-    // method and the TLB fifo implementation. testing will help detect the root of the error.
 
     /// Using the simulated virtual memory system, access the data stored at the provided logical
     /// address and return the value to the caller. Along the way a series of hit/miss stats are
@@ -433,6 +367,7 @@ impl VirtualMemory {
             },
         };
 
+        self.frames.reference(frame_index);
         Ok(AccessResult {
             virtual_address,
             physical_address: ((frame_index * self.frames.frame_size as usize) + offset) as u32,
@@ -457,13 +392,13 @@ impl VirtualMemory {
     fn retrieve_frame(&mut self, page_number: usize) -> Result<usize> {
         let frame_index = self.frames.allocate();
         let frame = &mut self.frames.entries[frame_index];
-        if let Some(page) = self.pages.find_mut(frame.page_id) {
+        if let Some(page) = self.pages.find_mut(frame.associated_page_id) {
             page.valid = false;
-            if self.tlb.flush_element(frame.page_id) {
+            if self.tlb.flush_element(frame.associated_page_id) {
                 self.tracker.tlb_flushes += 1;
             }
         }
-        frame.page_id = page_number;
+        frame.associated_page_id = page_number;
         self.storage.read(page_number as u64, &mut frame.buffer)?;
         self.pages.insert(
             page_number as usize,
@@ -602,27 +537,6 @@ mod tests {
         }
     }
 
-    #[cfg(test)]
-    mod fifo_tests {
-
-        use super::*;
-
-        #[test]
-        fn new() {
-            let ffq = Fifo::<usize>::new();
-            assert_eq!(ffq.0.len(), 0);
-        }
-
-        #[test]
-        fn enqueue_dequeue() {
-            let mut ffq = Fifo::new();
-            let values = 0..10;
-            values.clone().for_each(|x| ffq.enqueue(x));
-            values
-                .clone()
-                .for_each(|x| assert_eq!(ffq.dequeue(), Some(x)));
-        }
-    }
 
     #[cfg(test)]
     mod frame_table_tests {
@@ -637,7 +551,7 @@ mod tests {
             (0..TEST_TABLE_SIZE).for_each(|x| {
                 let frame_number = table.allocate();
                 let frame = &mut table.entries[frame_number];
-                frame.page_id = x;
+                frame.associated_page_id = x;
                 frame[0] = x as u8;
             });
             table
@@ -646,7 +560,6 @@ mod tests {
         #[test]
         fn new() {
             let ft = make_standard_table();
-            assert_eq!(ft.available.0.len(), 0);
             assert_eq!(ft.entries.len(), TEST_TABLE_SIZE);
             assert_eq!(ft.table_size, TEST_TABLE_SIZE);
             assert_eq!(ft.frame_size, TEST_FRAME_SIZE);

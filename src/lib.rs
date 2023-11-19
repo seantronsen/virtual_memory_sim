@@ -4,6 +4,7 @@ pub mod storage;
 pub mod tracker;
 pub mod validator;
 pub mod virtual_memory;
+//pub mod configuration;
 
 use address::AddressReader;
 use validator::ValidationReader;
@@ -21,7 +22,7 @@ const SIZE_FRAME: u64 = 256;
 const MASK_PAGE: u32 = 0x0000FF00;
 const MASK_OFFSET: u32 = 0x000000FF;
 
-/// A structure which contains the core elements required to run a simulation.
+/// A structure containing the core elements required to run a simulation.
 pub struct Simulation {
     virtual_memory: VirtualMemory,
     address_reader: AddressReader,
@@ -40,6 +41,7 @@ impl Simulation {
 
 // function header for use later
 fn prepare_simulation() -> Simulation {
+    // TODO: call configuration codes here.
     Simulation::build(SIZE_TLB, SIZE_TABLE, SIZE_FRAME)
 }
 
@@ -57,7 +59,7 @@ fn run_simulation(simulation: Simulation) {
         match access_result == validation_entry {
             true => virtual_memory.tracker.correct_memory_accesses += 1,
             false => {
-                println!("failure on record: {}", i);
+                println!("failure occurred on record: {}", i);
                 println!("--------------------------------");
                 println!("expected: {:?}", validation_entry);
                 println!("received: {:?}", access_result);
