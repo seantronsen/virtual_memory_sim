@@ -1,4 +1,4 @@
-use crate::{address::VirtualAddress, virtual_memory::AccessResult, FILENAME_VALIDATION};
+use crate::{address::VirtualAddress, virtual_memory::AccessResult};
 use std::{
     fs::File,
     io::{BufRead, BufReader},
@@ -6,7 +6,7 @@ use std::{
 
 // Similar to `address::AddressReader`, `ValidationReader` is used to read addresses into memory.
 // Where the former is used to read the raw address, the latter is used to validate whether an
-// implementation accessed and returned data from the correct segment of virtual memory. 
+// implementation accessed and returned data from the correct segment of virtual memory.
 pub struct ValidationReader {
     reader: BufReader<File>,
     pub line_number: u64,
@@ -14,14 +14,14 @@ pub struct ValidationReader {
 
 impl ValidationReader {
     /// Create a new `ValidationReader` instance for checking virtual memory implementation
-    /// results. 
+    /// results.
     ///
     /// # Panics
     ///
     /// Panics if the provided filename in the configuration does not exist.
     ///
-    pub fn new() -> Self {
-        match File::open(FILENAME_VALIDATION) {
+    pub fn new(filename: &str) -> Self {
+        match File::open(filename) {
             Err(e) => panic!("error: {:?}", e),
             Ok(ptr) => Self {
                 reader: BufReader::new(ptr),
@@ -56,6 +56,13 @@ impl Iterator for ValidationReader {
 mod tests {
 
     use super::*;
+    use crate::config::Config;
+    use clap::Parser;
+
+    fn standard_reader() -> ValidationReader {
+        let config = Config::parse();
+        ValidationReader::new(&config.file_validation)
+    }
 
     #[cfg(test)]
     mod validation_entry_tests {
@@ -90,7 +97,7 @@ mod tests {
 
         #[test]
         fn iterator() {
-            let mut reader = ValidationReader::new();
+            let mut reader = standard_reader();
             assert_eq!(
                 reader.next().unwrap(),
                 AccessResult {

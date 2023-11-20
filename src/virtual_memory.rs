@@ -315,12 +315,12 @@ impl VirtualMemory {
     /// * `frame_table_size` - number of entries in the simulated frame table (physical memory)
     /// * `frame_size` - size of each simulated frame of physical memory
     ///
-    pub fn build(tlb_size: usize, frame_table_size: usize, frame_size: u64) -> Self {
+    pub fn build(tlb_size: usize, frame_table_size: usize, frame_size: u64, file_storage: &str) -> Self {
         Self {
             tlb: TLB::build(tlb_size),
             pages: PageTable::build(),
             frames: FrameTable::build(frame_table_size, frame_size),
-            storage: Storage::build(),
+            storage: Storage::build(file_storage),
             tracker: Tracker::new(),
         }
     }
@@ -416,7 +416,9 @@ impl VirtualMemory {
 mod tests {
 
     use super::*;
-    use crate::{SIZE_FRAME, SIZE_TABLE};
+
+    const SIZE_FRAME: u64 = 256;
+    const SIZE_TABLE: usize = 256;
 
     #[cfg(test)]
     mod page_tests {

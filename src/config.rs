@@ -6,25 +6,25 @@ use std::process;
 #[command(author, version, about, long_about = None)]
 pub struct Config {
     #[arg(long, default_value_t =  env_or_default_str("SIM_FILE_STORAGE", "BACKING_STORE.bin"))]
-    file_storage: String,
+    pub file_storage: String,
     #[arg(long, default_value_t =  env_or_default_str("SIM_FILE_VALIDATION", "correct.txt"))]
-    file_validation: String,
+    pub file_validation: String,
 
     #[arg(long, default_value_t =  env_or_default_str("SIM_FILE_ADDRESS", "addresses.txt"))]
-    file_address: String,
+    pub file_address: String,
 
     #[arg(long, default_value_t = env_or_default_u32("SIM_SIZE_TABLE", 64))]
-    size_table: u32,
+    pub size_table: u32,
 
     #[arg(long, default_value_t =  env_or_default_u32("SIM_SIZE_TLB", 16))]
-    size_tlb: u32,
+    pub size_tlb: u32,
 
     #[arg(long, default_value_t = env_or_default_u32("SIM_SIZE_FRAME", 256))]
-    size_frame: u32,
+    pub size_frame: u32,
 }
 
 impl Config {
-    fn validate(&self) {
+    pub fn validate(&self) {
         if self.size_tlb == 0 || self.size_tlb > self.size_table {
             eprintln!("'size_tlb' must be a non-zero value less than 'size_table'");
             process::exit(1);
@@ -32,6 +32,11 @@ impl Config {
             eprintln!("'size_frame' must be a non-zero power of 2 integer value");
             process::exit(1);
         }
+    }
+
+    pub fn display(&self) {
+        println!("simulation configuration values: ");
+        println!("{:#?}", self);
     }
 }
 

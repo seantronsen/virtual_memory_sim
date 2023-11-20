@@ -1,4 +1,4 @@
-use crate::{FILENAME_ADDRESS, MASK_OFFSET, MASK_PAGE};
+use crate::{MASK_OFFSET, MASK_PAGE};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -61,8 +61,8 @@ impl AddressReader {
     /// Instantiating a new address reader will fail if the file at the provided path does not
     /// exist.
     ///
-    pub fn new() -> Self {
-        match File::open(FILENAME_ADDRESS) {
+    pub fn new(filename: &str) -> Self {
+        match File::open(filename) {
             Err(e) => panic!("error: {:?}", e),
             Ok(ptr) => Self {
                 reader: BufReader::new(ptr),
@@ -98,6 +98,14 @@ mod tests {
     use super::*;
     use std::io::Seek;
 
+    use crate::config::Config;
+    use clap::Parser;
+
+    fn standard_reader() -> AddressReader {
+        let config = Config::parse();
+        AddressReader::new(&config.file_address)
+    }
+
     #[cfg(test)]
     mod address_reader_tests {
 
@@ -105,14 +113,14 @@ mod tests {
 
         #[test]
         fn new() {
-            let mut reader = AddressReader::new();
+            let mut reader = standard_reader();
             assert_eq!(reader.line_number, 0);
             assert_eq!(reader.reader.stream_position().unwrap(), 0);
         }
 
         #[test]
         fn iterator() {
-            let mut reader = AddressReader::new();
+            let mut reader = standard_reader();
             assert_eq!(reader.next(), Some(VirtualAddress::from(16916)));
             assert_eq!(reader.last(), Some(VirtualAddress::from(12107)));
         }

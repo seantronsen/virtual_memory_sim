@@ -1,4 +1,3 @@
-use crate::FILENAME_STORAGE;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 
@@ -16,8 +15,8 @@ impl Storage {
     /// The call will panic if the file referenced by `FILENAME_STORAGE` does not exist in the
     /// location provided.
     ///
-    pub fn build() -> Self {
-        let file = File::open(FILENAME_STORAGE).unwrap();
+    pub fn build(filename: &str) -> Self {
+        let file = File::open(filename).unwrap();
         Self(BufReader::new(file))
     }
 
@@ -52,14 +51,22 @@ mod test {
 
     use super::*;
 
+    use crate::config::Config;
+    use clap::Parser;
+
     #[cfg(test)]
     mod storage_tests {
+
+        fn standard_storage() -> Storage {
+            let config = Config::parse();
+            Storage::build(&config.file_storage)
+        }
 
         use super::*;
 
         #[test]
         fn read() {
-            let mut store = Storage::build();
+            let mut store = standard_storage();
             let mut buffer = vec![0 as u8; 256];
             store.read(0, &mut buffer).unwrap();
             assert_eq!(buffer[7], 0x01);
