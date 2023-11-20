@@ -26,7 +26,7 @@ impl From<u32> for VirtualAddress {
     /// # Examples
     ///
     /// ```
-    /// use virtual_mem::address::VirtualAddress;
+    /// use virtual_memory_sim::address::VirtualAddress;
     /// let x: u32 = 0x00000f0f;
     /// let y = VirtualAddress::from(x);
     /// println!("{:?}", y);

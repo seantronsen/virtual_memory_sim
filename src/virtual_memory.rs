@@ -315,7 +315,12 @@ impl VirtualMemory {
     /// * `frame_table_size` - number of entries in the simulated frame table (physical memory)
     /// * `frame_size` - size of each simulated frame of physical memory
     ///
-    pub fn build(tlb_size: usize, frame_table_size: usize, frame_size: u64, file_storage: &str) -> Self {
+    pub fn build(
+        tlb_size: usize,
+        frame_table_size: usize,
+        frame_size: u64,
+        file_storage: &str,
+    ) -> Self {
         Self {
             tlb: TLB::build(tlb_size),
             pages: PageTable::build(),
@@ -539,7 +544,6 @@ mod tests {
         }
     }
 
-
     #[cfg(test)]
     mod frame_table_tests {
 
@@ -569,22 +573,18 @@ mod tests {
 
         #[test]
         fn allocate() {
-            // arrange
-
-            // act
-
-            // assert
-            todo!();
+            let mut ft = make_standard_table();
+            assert_eq!(ft.victimizer.front().unwrap().0, &0);
+            ft.allocate();
+            assert_eq!(ft.victimizer.front().unwrap().0, &1);
         }
 
         #[test]
-        fn reaper() {
-            // arrange
-
-            // act
-
-            // assert
-            todo!();
+        fn reference() {
+            let mut ft = make_standard_table();
+            assert_eq!(ft.victimizer.front().unwrap().0, &0);
+            ft.reference(0);
+            assert_eq!(ft.victimizer.back().unwrap().0, &0);
         }
     }
 
