@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_imports)]
 pub mod address;
 pub mod config;
 pub mod storage;
@@ -8,7 +7,7 @@ pub mod virtual_memory;
 
 use address::AddressReader;
 use config::Config;
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::{process, thread, time::Duration};
 use validator::ValidationReader;
 use virtual_memory::VirtualMemory;
@@ -16,7 +15,7 @@ use virtual_memory::VirtualMemory;
 const MASK_PAGE: u32 = 0x0000FF00;
 const MASK_OFFSET: u32 = 0x000000FF;
 
-/// A structure containing the core elements required to run a simulation.
+/// A structure containing the core simulation components.
 pub struct Simulation {
     virtual_memory: VirtualMemory,
     address_reader: AddressReader,
@@ -24,6 +23,12 @@ pub struct Simulation {
 }
 
 impl Simulation {
+    /// Provided the program configuration, return a configured instance of the simulation struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - An instance of the configuration struct which contains settings for a given
+    /// run.
     pub fn build(config: &Config) -> Self {
         Self {
             address_reader: AddressReader::new(&config.file_address),
@@ -38,7 +43,17 @@ impl Simulation {
     }
 }
 
-fn run_simulation(config: Config) {
+/// Using the configuration provided, run the simulation to completion while logging performance
+/// and error metrics along the way. Should any incorrect memory accesses occur due to cache
+/// incoherence, debugging information will be logged to STDERR.
+///
+/// Note that a delay may be added to each iteration if desired. See the definition of the
+/// configuration struct default values.
+///
+/// # Arguments
+///
+/// * `config` - An instance of the program configuration struct.
+pub fn run_simulation(config: Config) {
     let Simulation {
         address_reader,
         validation_reader,
@@ -55,22 +70,18 @@ fn run_simulation(config: Config) {
         match access_result == validation_entry {
             true => virtual_memory.tracker.correct_memory_accesses += 1,
             false => {
-                println!("failure occurred on record: {i:05}");
-                println!("--------------------------------");
-                println!("expected: {validation_entry:?}");
-                println!("received: {access_result:?}");
+                eprintln!("failure occurred on record: {i:05}");
+                eprintln!("--------------------------------");
+                eprintln!("expected: {validation_entry:?}");
+                eprintln!("received: {access_result:?}");
             }
         }
         pb.inc(1);
-        thread::sleep(Duration::from_micros(250));
+        thread::sleep(Duration::from_micros(config.delay_us.into()));
     }
     println!("{}", virtual_memory.tracker);
     let tracker = &virtual_memory.tracker;
     if tracker.attempted_memory_accesses != tracker.correct_memory_accesses {
         process::exit(2)
     }
-}
-
-pub fn runner(config: Config) {
-    run_simulation(config)
 }

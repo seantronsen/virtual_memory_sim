@@ -1,8 +1,6 @@
-use crate::virtual_memory;
-
 /// The `Tracker` struct is a simple collection of named performance data counters used for
-/// collecting data points on a virtual memory simulations. The data collected is used to conduct
-/// light statistical analysis about the performance of a particular algorithm.
+/// collecting data points on the simulation. The data collected is used to conduct light
+/// statistical analysis about the performance of an algorithm.
 #[derive(Debug, PartialEq)]
 pub struct Tracker {
     pub page_hits: usize,
@@ -14,7 +12,6 @@ pub struct Tracker {
 
 impl Tracker {
     /// Create a new instance of the `Tracker` struct with all counters initialized to zero.
-    ///
     pub fn new() -> Self {
         Self {
             page_hits: 0,
@@ -56,7 +53,6 @@ page hit ratio:           {:.06}
             self.tlb_flushes,
             self.attempted_memory_accesses,
             self.correct_memory_accesses,
-            // assumes all accesses were valid
             self.tlb_hits as f32 / self.attempted_memory_accesses as f32,
             self.page_hits as f32 / self.attempted_memory_accesses as f32,
         )

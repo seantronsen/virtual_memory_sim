@@ -1,6 +1,6 @@
 use clap::Parser;
 use virtual_memory_sim::config::Config;
-use virtual_memory_sim::runner;
+use virtual_memory_sim::run_simulation;
 
 fn init_msg() {
     println!("virtual memory simulation");
@@ -12,5 +12,5 @@ fn main() {
     config.display();
     config.validate();
     println!();
-    runner(config);
+    run_simulation(config);
 }

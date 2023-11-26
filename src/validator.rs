@@ -19,7 +19,6 @@ impl ValidationReader {
     /// # Panics
     ///
     /// Panics if the provided filename in the configuration does not exist.
-    ///
     pub fn new(filename: &str) -> Self {
         match File::open(filename) {
             Err(e) => panic!("error: {:?}", e),

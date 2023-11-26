@@ -2,12 +2,12 @@ use crate::address::VirtualAddress;
 use crate::storage::Storage;
 use crate::tracker::Tracker;
 use linked_hash_map::LinkedHashMap;
-use std::collections::{HashMap, LinkedList};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 
-/// Type Alias: Simple rebranding of the `Result` enum from the standard library with a focus on the errors
-/// that may result from the use of this module (at least improperly).
+/// Type Alias: A rebranding of the `Result` enum from the standard library which focuses on errors
+/// that may result from improper use of this module.
 type Result<T> = std::result::Result<T, Error>;
 
 // The `Error` enum here is merely a formal declaration and generalization of the error kinds that
@@ -15,7 +15,6 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     IOError(std::io::Error),
-    FreeFrameUnavailable,
 }
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
@@ -23,10 +22,9 @@ impl From<std::io::Error> for Error {
     }
 }
 
-/// The `AccessResult` struct stitches several values together for later use in tracking the
-/// accuracy of the virtual memory implementation. Elements include the virtual address provided to
-/// an operation, the corresponding physical address, and the value read in using the information.
-///
+/// The `AccessResult` encodes the result of an attempted memory access for later use in tracking
+/// the accuracy across the simulation. Properties include the virtual address provided to an
+/// operation, the corresponding physical address, and the value read from that address.
 #[derive(Debug)]
 pub struct AccessResult {
     pub virtual_address: VirtualAddress,
@@ -40,26 +38,20 @@ impl PartialEq for AccessResult {
     }
 }
 
-// idea to fix this is to completely shed away the victimizer list and the original map in
-// favor of the linked hash map struct. has all the features of a regular hash map while keeping
-// elements in insertion order. it will also make the creation of LRU much simpler since the struct
-// possesses all the features that we already need.
-
-/// The `TLB` struct is intended to be a simple virtualization of the translation look aside buffer
-/// commonly found on most CPUs today.
+/// The `TLB` struct is a simple virtualization of the translation look aside buffer commonly found
+/// in CPUs.
 struct TLB {
     table_size: usize,
     map: LinkedHashMap<usize, usize>,
 }
 
 impl TLB {
-    /// Create and return a new `TLB` instance with the provided cache size.
+    /// Create and return a new `TLB` instance using the provided cache size.
     ///
     /// # Arguments
     ///
-    /// * `table_size` - an unsigned integer value representing the maximum number of elements the
-    /// TLB is allowed to cache.
-    ///
+    /// * `table_size` - an unsigned integer value representing the maximum number of elements in
+    /// the buffer.
     fn build(table_size: usize) -> Self {
         Self {
             table_size,
@@ -67,30 +59,30 @@ impl TLB {
         }
     }
 
-    /// Search the TLB for the requested page and return the result as an `Option`. Note that
-    /// returning a `None` value implies a TLB fault (a cache miss) has occurred.
+    /// Search the TLB for the requested page and return the result as an `Option`. A `None` value
+    /// implies a TLB fault (cache miss) has occurred.
     ///
     /// # Arguments
     ///
-    /// * `page_number` - [TODO:description]
+    /// * `page_number` - The page ID.
     ///
     fn find(&self, page_number: usize) -> Option<&usize> {
         self.map.get(&page_number)
     }
 
-    /// Provided a key (logical page number) and value (physical frame number), cache the data for
-    /// future use in efforts to avoid a full page table lookup. In physical computers, this action
-    /// is performed with the knowledge that requested data is often used frequently. Storing a
-    /// cache in this manner eliminates the need to search the page table on a cache hit and
-    /// thereby eliminates 2+ load (dereference) instructions. Realize one dereference occurs when loading
-    /// the value (address) stored in the page table, another occurs when loading the data
+    /// Provided a key (logical page number) and value (physical frame number), cache the mapping
+    /// to aid in avoiding a full page table lookup. In physical computers, this action is
+    /// performed with the knowledge that requested data is often used frequently. Caching
+    /// frequently used mappings eliminates the need to search the page table on a cache hit and
+    /// thereby eliminates 2+ load (dereference) instructions. Realize one dereference occurs when
+    /// loading the value (address) stored in the page table, another occurs when loading the data
     /// referenced by that value. This pattern continues $n$ times for a page table with $n$ levels
     /// of indirection.
     ///
     /// # Arguments
     ///
-    /// * `key` - the logical page number to cache
-    /// * `value` - the actual frame number which exists in memory.
+    /// * `key` - logical page number
+    /// * `value` - physical frame number
     ///
     fn cache_element(&mut self, key: usize, value: usize) {
         if self.map.len() == self.table_size {
@@ -99,14 +91,23 @@ impl TLB {
         self.map.insert(key, value);
     }
 
+    /// Provided a logical page number (key), ensure the mapping associated with it no longer
+    /// exists in the buffer. A cache flush is required when a multi-level cache is used and
+    /// one or more levels have fallen out of alignment with the rest.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - logical page number
     fn flush_element(&mut self, key: usize) -> bool {
         self.map.remove(&key).is_some()
     }
 }
 
-/// The `Page` struct represents the simplest element of the simulated page table. It serves as
-/// little more than a wrapper that specifies which physical frame the page is associated with and
-/// whether that frame is still valid (meaning whether it has been victimized or paged out).
+/// The `Page` struct represents the simplest element of the simulated page table. It serves as a
+/// mapping structure to a physical frame where the corresponding reference may exist in an invalid
+/// state. Invalid references (simulated dangling pointers) occur when the data referenced
+/// originally has been paged out. Recall that a finite number of frames serve a seamingly infinite
+/// number of logical pages.
 #[derive(Debug, PartialEq)]
 struct Page {
     frame_index: usize,
@@ -115,14 +116,13 @@ struct Page {
 
 /// The `PageTable` struct is little more than a wrapper around the standard Rust library `HashMap`
 /// that maintains only the most essential operations. A seemingly infinite number of pages can be
-/// added to this table, but understand that it only contains logical references to physical
+/// added to this table, but understand each constitutes a potential logical reference to physical
 /// memory. Whether that memory is actually allocated, available, and/or still valid entirely
-/// depends on the victimization algorithm and the total amount of physical memory available (or in
-/// this case, configured).
+/// depends on the victimization algorithm and the total amount of physical memory available
+/// (configured).
 struct PageTable(HashMap<usize, Page>);
 impl PageTable {
     /// Create a new instance of the `PageTable` struct for use in simulating virtual memory.
-    ///
     fn build() -> Self {
         Self(HashMap::new())
     }
@@ -133,15 +133,14 @@ impl PageTable {
     ///
     /// # Arguments
     ///
-    /// * `id` - an unsigned integer value representing the requested page number.
+    /// * `id` - logical page number
     ///
     fn find(&self, id: usize) -> Option<&Page> {
         self.0.get(&id)
     }
 
     /// The behavior of `find_mut` is identical to that of the `find` method with the only
-    /// exception being that it returns an option with a mutable reference to the page number when
-    /// the `Some` variant is returned.
+    /// exception being that the `Some` variant contains a mutable.
     ///
     /// # Arguments
     ///
@@ -159,32 +158,16 @@ impl PageTable {
     ///
     /// # Arguments
     ///
-    /// * `id` - an unsigned integer value representing the requested page number.
-    /// * `page` - A `Page` instance containing information about the physical in-memory frame.
+    /// * `id` - logical page number.
+    /// * `page` - A `Page` instance containing frame mapping information.
     ///
     fn insert(&mut self, id: usize, page: Page) {
         self.0.insert(id, page);
     }
-
-    fn as_vec(&self) -> Vec<(&usize, &Page)> {
-        let mut holder = self.0.iter().collect::<Vec<_>>();
-        holder.sort_by(|a, b| a.0.partial_cmp(b.0).unwrap());
-        holder
-    }
 }
 
-impl ToString for PageTable {
-    fn to_string(&self) -> String {
-        let mut string = String::new();
-        self.as_vec()
-            .iter()
-            .for_each(|x| string.push_str(format!("{:?}\n", x).as_str()));
-        string
-    }
-}
-
-/// The `Frame` struct contains a buffer with a length defined as the frame size in bytes (`u8`).
-/// It is intended to be the simplest element of the `FrameTable` and represents memory that can be
+/// The `Frame` struct contains a buffer with a length defined as the frame size in bytes. It is
+/// intended to be the simplest element of the `FrameTable` and represents memory that can be
 /// swapped in and out via demand paging. An associated `page_id` element is kept simply for record
 /// keeping and to minimize the effort required to invalidate the corresponding entry in the page
 /// table when a frame is victimized (paged-out).
@@ -223,18 +206,17 @@ impl IndexMut<usize> for Frame {
     }
 }
 
-/// The `FrameTable` struct is used to simulate the behavior of physical memory frames relative to
-/// the operating system. Although a `PageTable` may possess a seemingly infinite number of pages,
-/// a `FrameTable` is limited to a finite amount to mimic the characteristics of real physical
-/// memory. Here, the benefits of virtual memory begin to unfold as processes naively see a bottomless pool
-/// of possible allocations due to the size possible with virtual address spaces.
+/// The `FrameTable` struct simulates the behavior of physical memory frames relative to the
+/// operating system. While the `PageTable` may possess a seemingly infinite number of pages, the
+/// `FrameTable` is limited to a finite amount to mimic the constraints physical memory. Here, the
+/// benefits of virtual memory unfold as processes naively see a bottomless pool of possible
+/// allocations due to the size possible with virtual address spaces.
 ///
 /// Instances of the `FrameTable` struct are predominantly buffers containing references to other
 /// buffers (frames). Additional elements within the struct exist merely for housekeeping or for
 /// the sake of the victimization algorithm responsible for ensuring continued allocation
 /// operations at the expense of infrequently used chunks of memory.
 struct FrameTable {
-    table_size: usize,
     frame_size: u64,
     entries: Vec<Frame>,
     victimizer: LinkedHashMap<usize, usize>,
@@ -246,9 +228,8 @@ impl FrameTable {
     ///
     /// # Arguments
     ///
-    /// * `table_size` - an unsigned integer which specifies the size of the frame table.
-    /// * `frame_size` - an unsigned integer used to set the size of all frames within the table.
-    ///
+    /// * `table_size` - size of the frame table.
+    /// * `frame_size` - size any frame within the table.
     fn build(table_size: usize, frame_size: u64) -> Self {
         let mut entries: Vec<Frame> = Vec::with_capacity(table_size);
         let mut victimizer = LinkedHashMap::new();
@@ -259,14 +240,9 @@ impl FrameTable {
 
         Self {
             frame_size,
-            table_size,
             entries,
             victimizer,
         }
-    }
-
-    fn victimizer_vector(&self) -> Vec<&usize> {
-        self.victimizer.iter().map(|(x, _)| x).collect()
     }
 
     /// Instruct the frame table to allocate a free frame regardless of whether one is available.
@@ -276,17 +252,17 @@ impl FrameTable {
     /// swap space assuming the system is configured to use it. Although significantly slower,
     /// there are still merits to using a system-managed raw partition relative to the virtual
     /// memory implementation.
-    ///
     fn allocate(&mut self) -> usize {
-        let value = self
-            .victimizer
-            .pop_front()
-            .expect("should have victims at the ready")
-            .0;
+        let value = self.victimizer.pop_front().expect("should have victims").0;
         self.victimizer.insert(value, value);
         value
     }
 
+    /// Reference a frame within the table to reset its' position within the victimization queue.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - index of the target frame
     fn reference(&mut self, index: usize) {
         self.victimizer.remove(&index).unwrap();
         self.victimizer.insert(index, index);
@@ -294,10 +270,9 @@ impl FrameTable {
 }
 
 /// The `VirtualMemory` struct is the culmination of all other structures and procedures in this
-/// module. The core purpose of each instance is to simulate the actions of a virtual memory system
-/// with only a modest amount of configuration. Ideally, it also should behave as a standard
-/// testing system for different algorithms with minor reconfiguration to the struct definition and
-/// initializer function calls.
+/// module. The core purpose of each instance is to simulate the behavior of a virtual memory
+/// system with only a modest amount of configuration. Ideally, it should behave as a standard
+/// testing system for different algorithms, albeit with minor reconfiguration.
 pub struct VirtualMemory {
     tlb: TLB,
     pages: PageTable,
@@ -307,13 +282,13 @@ pub struct VirtualMemory {
 }
 
 impl VirtualMemory {
-    /// Provided the nessecary arguments, create a new `VirtualMemory` instance.
+    /// Create a new `VirtualMemory` instance.
     ///
     /// # Arguments
     ///
-    /// * `tlb_size` - size of the TLB cache.
-    /// * `frame_table_size` - number of entries in the simulated frame table (physical memory)
-    /// * `frame_size` - size of each simulated frame of physical memory
+    /// * `tlb_size` - TLB cache size.
+    /// * `frame_table_size` - number of frame table entries.
+    /// * `frame_size` - size of any frame in bytes.
     ///
     pub fn build(
         tlb_size: usize,
@@ -330,25 +305,24 @@ impl VirtualMemory {
         }
     }
 
-    /// Using the simulated virtual memory system, access the data stored at the provided logical
-    /// address and return the value to the caller. Along the way a series of hit/miss stats are
-    /// recorded for analysis of algorithmic performance. Note that performance is directly related
-    /// to the implementation employed as well as the nature of the overall collection of requests
-    /// made over the lifetime of the instance. Regarding the latter, if the address requests are
-    /// randomly generated then there is little hope in having meaningful performance at any cache
-    /// level. On the other hand, if the access requests are more sequential in nature such as a
-    /// sequential read of bytes or programmatic instructions, then the performance gains will be
-    /// more noticable.
+    /// Using the simulated virtual memory system, used the provided logical address to access the
+    /// data stored in "physical" memory and return the value to the caller. Statistics are
+    /// recorded along the way for future analysis of algorithmic performance. Note that
+    /// performance is directly related to the implementation employed as well as the nature of the
+    /// overall collection of requests made over the lifetime of the instance. Regarding the
+    /// latter, if the address requests are randomly generated then there is little hope in having
+    /// meaningful performance at any cache level. On the other hand, if the access requests are
+    /// more sequential in nature such as a sequential read of bytes or programmatic instructions,
+    /// then the performance gains will be more noticable.
     ///
     /// # Arguments
     ///
-    /// * `virtual_address` - the process facing logical address used for indirect data access
+    /// * `virtual_address` - the process-facing logical address used for indirect data access
     ///
     /// # Errors
     ///
-    /// Errors will occur if an invalid frame retrieval request is generated (e.g. accessing a
-    /// frame number greater than the possible number of entries in the table).
-    ///
+    /// An error will occur if an invalid frame retrieval request is executed (e.g. out-of-bounds
+    /// memory access).
     pub fn access(&mut self, virtual_address: VirtualAddress) -> Result<AccessResult> {
         self.tracker.attempted_memory_accesses += 1;
         let page_number = virtual_address.number_page as usize;
@@ -386,14 +360,13 @@ impl VirtualMemory {
     ///
     /// # Arguments
     ///
-    /// * `page_number` - an unsigned integer representing the number of the requested page.
+    /// * `page_number` - logical page number/ID.
     ///
     /// # Errors
     ///
     /// An error will occur if the storage read operation is passed invalid arguments (e.g. reading
     /// past the end of the simulated backing store). The error value is returned to the caller in
     /// the form of the `Error` enum variant.
-    ///
     fn retrieve_frame(&mut self, page_number: usize) -> Result<usize> {
         let frame_index = self.frames.allocate();
         let frame = &mut self.frames.entries[frame_index];
@@ -460,9 +433,6 @@ mod tests {
             table
         }
 
-        // module level tests
-
-        /// Ensure the page table is built to expectations.
         #[test]
         fn build() {
             // arrange
@@ -506,8 +476,6 @@ mod tests {
         fn insert() {
             // arrange
             let mut table = make_standard_table();
-            println!("current table:");
-            println!("{}", table.to_string());
             let page_id = 5;
             let frame_index = 55;
             let new_page = Page {
@@ -517,8 +485,6 @@ mod tests {
 
             // act
             table.insert(page_id, new_page);
-            println!("modified table:");
-            println!("{}", table.to_string());
 
             // assert
             assert_eq!(
@@ -567,7 +533,6 @@ mod tests {
         fn new() {
             let ft = make_standard_table();
             assert_eq!(ft.entries.len(), TEST_TABLE_SIZE);
-            assert_eq!(ft.table_size, TEST_TABLE_SIZE);
             assert_eq!(ft.frame_size, TEST_FRAME_SIZE);
         }
 
@@ -617,8 +582,3 @@ mod tests {
         }
     }
 }
-
-// TODO: ensure tests are in place that ensure the functionality of the TLB replacement and frame
-// replacement algorithms.
-//
-// TODO: need to write test that ensures the alignment of the TLB with the page table.

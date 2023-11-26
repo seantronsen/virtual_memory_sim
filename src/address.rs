@@ -2,17 +2,14 @@ use crate::{MASK_OFFSET, MASK_PAGE};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-/// `VirtualAddress` is a type that represents the components of a virtual memory address in a
-/// single structure and including elements such as the page number, offset, and various extra
-/// information.
+/// `VirtualAddress` is an abstraction which represents the components of a virtual address within
+/// a single structure. It includes includes elements such as the page number, offset, and any
+/// extra bits (which have no meaning at the time of writing).
 #[derive(PartialEq, Debug)]
 pub struct VirtualAddress {
     pub number_page: u8,
     pub number_offset: u8,
     extra_bits: u16,
-
-    // remove
-    original: u32,
 }
 
 impl From<u32> for VirtualAddress {
@@ -38,29 +35,25 @@ impl From<u32> for VirtualAddress {
             number_page: ((value & MASK_PAGE) >> 8) as u8,
             number_offset: (value & MASK_OFFSET) as u8,
             extra_bits: (((!(MASK_OFFSET | MASK_PAGE)) & value) >> 16) as u16,
-            original: value,
         }
     }
 }
 
-/// `AddressReader` is a utility type responsible for sequentially obtaining raw address numbers
-/// from a text file. The obtained addresses can be used to access data from a virtual memory
-/// system.
+/// `AddressReader` is a utility type responsible for sequentially obtaining "raw" address numbers
+/// from a text file. Those obtained can be used to access data from a virtual memory system.
 pub struct AddressReader {
     reader: BufReader<File>,
     pub line_number: u64,
 }
 
 impl AddressReader {
-    /// Instantiate a new `AddressReader` struct for working with the provided text file. Future
-    /// users should ensure the content of this file contains only address numbers (no header
-    /// information) and each line of the file contains only one address.
+    /// Instantiate a new `AddressReader` struct for working with the provided text file. Ensure
+    /// the content of the file contains only address numbers (no header information) and each line
+    /// contains only one address.
     ///
     /// # Panics
     ///
-    /// Instantiating a new address reader will fail if the file at the provided path does not
-    /// exist.
-    ///
+    /// Instantiating a new address reader will fail if the file does not exist.
     pub fn new(filename: &str) -> Self {
         match File::open(filename) {
             Err(e) => panic!("error: {:?}", e),
@@ -146,7 +139,6 @@ mod tests {
             address.extra_bits = 0xabcd;
             address.number_page = 0x12;
             address.number_offset = 0x34;
-            address.original = 0xabcd1234;
             assert_eq!(address, VirtualAddress::from(0xabcd1234))
         }
     }

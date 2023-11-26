@@ -12,9 +12,7 @@ impl Storage {
     /// Create a new instance of the `Storage` struct.
     ///
     /// # Panics
-    /// The call will panic if the file referenced by `FILENAME_STORAGE` does not exist in the
-    /// location provided.
-    ///
+    /// The call will panic if the filepath provided does not exist.
     pub fn build(filename: &str) -> Self {
         let file = File::open(filename).unwrap();
         Self(BufReader::new(file))
@@ -28,16 +26,17 @@ impl Storage {
     ///
     /// # Arguments
     ///
-    /// * `seek_multiplier` - the number of times `buffer.len()` will be multiplied to obtain the
-    /// start position for the read operation.
-    /// * `buffer` - a mutable reference to a buffer in which the data is to be written.
+    /// * `seek_multiplier` - the number of times the buffer size is multiplied to obtain the start
+    /// position for the read operation.
+    /// * `buffer` - a mutable reference to a buffer for data to be read into.
     ///
     /// # Errors
     ///
-    /// Errors may occur if the buffer is not a correct size or the seek_multiplier is improperly
-    /// set. Typically, such errors are the result of attempting to read past the bounds of the
-    /// file provided as the backing store.
+    /// An error may occur if:
+    /// - the buffer is not a valid size
+    /// - the seek_multiplier is improperly set
     ///
+    /// Such errors are the result of attempting to read past the bounds of the backing store.
     pub fn read(&mut self, seek_multiplier: u64, buffer: &mut Vec<u8>) -> Result<(), io::Error> {
         let seek_pos = SeekFrom::Start(buffer.len() as u64 * seek_multiplier);
         self.0.seek(seek_pos)?;
