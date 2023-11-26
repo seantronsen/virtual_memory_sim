@@ -38,8 +38,7 @@ impl PartialEq for AccessResult {
     }
 }
 
-/// The `TLB` struct is a simple virtualization of the translation look aside buffer commonly found
-/// in CPUs.
+/// The `TLB` struct is a virtualization of the translation look aside buffer found in CPUs.
 struct TLB {
     table_size: usize,
     map: LinkedHashMap<usize, usize>,
@@ -71,13 +70,15 @@ impl TLB {
     }
 
     /// Provided a key (logical page number) and value (physical frame number), cache the mapping
-    /// to aid in avoiding a full page table lookup. In physical computers, this action is
-    /// performed with the knowledge that requested data is often used frequently. Caching
-    /// frequently used mappings eliminates the need to search the page table on a cache hit and
-    /// thereby eliminates 2+ load (dereference) instructions. Realize one dereference occurs when
-    /// loading the value (address) stored in the page table, another occurs when loading the data
-    /// referenced by that value. This pattern continues $n$ times for a page table with $n$ levels
-    /// of indirection.
+    /// to aid in avoiding a full page table lookup. If the mapping is already present within the
+    /// cache, reset its' position within the victimization queue.
+    ///
+    /// In physical computers, this action is performed with the knowledge that requested data is
+    /// often used frequently. Caching frequently used mappings eliminates the need to search the
+    /// page table on a cache hit and thereby eliminates 2+ load (dereference) instructions.
+    /// Realize one dereference occurs when loading the value (address) stored in the page table,
+    /// another occurs when loading the data referenced by that value. This pattern continues $n$
+    /// times for a page table with $n$ levels of indirection.
     ///
     /// # Arguments
     ///
@@ -85,8 +86,8 @@ impl TLB {
     /// * `value` - physical frame number
     ///
     fn cache_element(&mut self, key: usize, value: usize) {
-        if self.map.len() == self.table_size {
-            self.map.pop_back();
+        if self.map.remove(&key).is_none() && self.map.len() == self.table_size {
+            self.map.pop_front();
         }
         self.map.insert(key, value);
     }
