@@ -2,8 +2,6 @@ use clap::Parser;
 use std::env;
 use std::process;
 
-/// The `Config` struct encodes the configuration for the entire program. Any elements with
-/// variable settings can be found here and the same should hold true for any future additions.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Config {
